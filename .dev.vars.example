@@ -1,0 +1,4 @@
+# Chép file này thành .dev.vars để chạy trên máy.
+SESSION_SECRET=thay-bang-chuoi-ngau-nhien-dai
+# Bật form đăng nhập thử. Không đặt biến này khi đưa trang lên mạng.
+DEV_LOGIN=true
