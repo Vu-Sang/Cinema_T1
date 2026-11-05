@@ -112,20 +112,183 @@ function buildChairs(scene: THREE.Scene): THREE.InstancedMesh {
   return hit;
 }
 
-function buildTank(): THREE.Group {
+let gaugeTex: THREE.CanvasTexture | null = null;
+function getGaugeTexture(): THREE.CanvasTexture {
+  if (gaugeTex) return gaugeTex;
+  const canvas = document.createElement("canvas");
+  canvas.width = 128;
+  canvas.height = 128;
+  const context = canvas.getContext("2d")!;
+
+  // White dial background
+  context.fillStyle = "#f8fafc";
+  context.beginPath();
+  context.arc(64, 64, 60, 0, Math.PI * 2);
+  context.fill();
+
+  // Dark metallic bezel
+  context.lineWidth = 6;
+  context.strokeStyle = "#475569";
+  context.stroke();
+
+  // Green safe zone arc (normal breathing oxygen pressure)
+  context.lineWidth = 9;
+  context.strokeStyle = "#22c55e";
+  context.beginPath();
+  context.arc(64, 64, 46, Math.PI * 0.72, Math.PI * 1.82);
+  context.stroke();
+
+  // Red empty/warning zone arc
+  context.strokeStyle = "#ef4444";
+  context.beginPath();
+  context.arc(64, 64, 46, Math.PI * 1.82, Math.PI * 2.28);
+  context.stroke();
+
+  // Tick marks
+  context.strokeStyle = "#1e293b";
+  context.lineWidth = 2.5;
+  for (let i = 0; i <= 10; i++) {
+    const angle = Math.PI * 0.72 + (i / 10) * Math.PI * 1.56;
+    const r1 = i % 5 === 0 ? 37 : 41;
+    const r2 = 50;
+    context.beginPath();
+    context.moveTo(64 + Math.cos(angle) * r1, 64 + Math.sin(angle) * r1);
+    context.lineTo(64 + Math.cos(angle) * r2, 64 + Math.sin(angle) * r2);
+    context.stroke();
+  }
+
+  // Label "O₂"
+  context.fillStyle = "#0f172a";
+  context.font = "800 18px 'Be Vietnam Pro', sans-serif";
+  context.textAlign = "center";
+  context.textBaseline = "middle";
+  context.fillText("O₂", 64, 42);
+
+  // Red indicator needle pointing to ~65% pressure
+  const needleAngle = Math.PI * 1.32;
+  context.strokeStyle = "#dc2626";
+  context.lineWidth = 3.5;
+  context.lineCap = "round";
+  context.beginPath();
+  context.moveTo(64, 64);
+  context.lineTo(64 + Math.cos(needleAngle) * 44, 64 + Math.sin(needleAngle) * 44);
+  context.stroke();
+
+  // Center cap
+  context.fillStyle = "#1e293b";
+  context.beginPath();
+  context.arc(64, 64, 6, 0, Math.PI * 2);
+  context.fill();
+
+  gaugeTex = new THREE.CanvasTexture(canvas);
+  gaugeTex.colorSpace = THREE.SRGBColorSpace;
+  return gaugeTex;
+}
+
+let shadowTex: THREE.CanvasTexture | null = null;
+export function getShadowTexture(): THREE.CanvasTexture {
+  if (shadowTex) return shadowTex;
+  const canvas = document.createElement("canvas");
+  canvas.width = 128;
+  canvas.height = 128;
+  const context = canvas.getContext("2d")!;
+  const gradient = context.createRadialGradient(64, 64, 10, 64, 64, 60);
+  gradient.addColorStop(0, "rgba(0, 0, 0, 0.75)");
+  gradient.addColorStop(0.5, "rgba(0, 0, 0, 0.4)");
+  gradient.addColorStop(1, "rgba(0, 0, 0, 0)");
+  context.fillStyle = gradient;
+  context.fillRect(0, 0, 128, 128);
+  shadowTex = new THREE.CanvasTexture(canvas);
+  return shadowTex;
+}
+
+function buildTank(side = -1): THREE.Group {
   const group = new THREE.Group();
-  const body = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 0.85, 10), flat(COLORS.tank, { roughness: 0.45 }));
-  body.position.y = 0.43;
-  const shoulder = new THREE.Mesh(new THREE.SphereGeometry(0.15, 10, 5, 0, Math.PI * 2, 0, Math.PI / 2), body.material);
-  shoulder.position.y = 0.855;
-  const band = new THREE.Mesh(new THREE.CylinderGeometry(0.155, 0.155, 0.06, 10), flat(COLORS.steel));
-  band.position.y = 0.6;
-  const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.12, 6), flat(COLORS.tankCap));
-  neck.position.y = 1.03;
-  const gauge = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.03, 8), flat(COLORS.steel));
-  gauge.rotation.x = Math.PI / 2;
-  gauge.position.set(0, 1.05, 0.05);
-  group.add(body, shoulder, band, neck, gauge);
+
+  const blueTankMat = new THREE.MeshStandardMaterial({
+    color: 0x1565c0,
+    roughness: 0.35,
+    metalness: 0.15,
+  });
+  const darkBaseMat = new THREE.MeshStandardMaterial({
+    color: 0x0f172a,
+    roughness: 0.7,
+  });
+  const chromeMat = new THREE.MeshStandardMaterial({
+    color: 0xd1d5db,
+    roughness: 0.25,
+    metalness: 0.8,
+  });
+  const brassMat = new THREE.MeshStandardMaterial({
+    color: 0xd97706,
+    roughness: 0.35,
+    metalness: 0.6,
+  });
+  const valveKnobMat = new THREE.MeshStandardMaterial({
+    color: 0x1d4ed8,
+    roughness: 0.4,
+  });
+
+  // 1. Rubber base boot
+  const baseBoot = new THREE.Mesh(new THREE.CylinderGeometry(0.185, 0.19, 0.08, 16), darkBaseMat);
+  baseBoot.position.y = 0.04;
+  group.add(baseBoot);
+
+  // 2. Main cylinder body
+  const body = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.18, 0.96, 16), blueTankMat);
+  body.position.y = 0.54;
+  group.add(body);
+
+  // 3. Top dome / shoulder
+  const dome = new THREE.Mesh(new THREE.SphereGeometry(0.18, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2), blueTankMat);
+  dome.position.y = 1.02;
+  group.add(dome);
+
+  // 4. Neck collar
+  const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.065, 0.07, 0.12, 12), chromeMat);
+  neck.position.y = 1.2;
+  group.add(neck);
+
+  // 5. Regulator block
+  const regBlock = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.08, 0.1), brassMat);
+  regBlock.position.y = 1.28;
+  group.add(regBlock);
+
+  // 6. Valve stem & wheel knob on top
+  const valveStem = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.06, 8), brassMat);
+  valveStem.position.y = 1.34;
+  const valveKnob = new THREE.Mesh(new THREE.CylinderGeometry(0.085, 0.085, 0.035, 12), valveKnobMat);
+  valveKnob.position.y = 1.38;
+  group.add(valveStem, valveKnob);
+
+  // 7. Pressure Gauge facing slightly towards the aisle / camera
+  const gaugeCasing = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.075, 0.03, 16), chromeMat);
+  gaugeCasing.rotation.x = Math.PI / 2;
+  gaugeCasing.position.set(0, 1.28, 0.07);
+
+  const gaugeFace = new THREE.Mesh(new THREE.CircleGeometry(0.068, 16), new THREE.MeshBasicMaterial({ map: getGaugeTexture() }));
+  gaugeFace.position.set(0, 1.28, 0.086);
+
+  const gaugeGroup = new THREE.Group();
+  gaugeGroup.add(gaugeCasing, gaugeFace);
+  gaugeGroup.rotation.y = -0.3 * side;
+  group.add(gaugeGroup);
+
+  // 8. Hose outlet nozzle (points inward toward the aisle / avatar)
+  const nozzle = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.07, 8), brassMat);
+  nozzle.rotation.z = Math.PI / 2;
+  nozzle.position.set(-side * 0.07, 1.26, 0);
+  group.add(nozzle);
+
+  // 9. Soft drop shadow on floor
+  const shadow = new THREE.Mesh(
+    new THREE.PlaneGeometry(0.7, 0.7),
+    new THREE.MeshBasicMaterial({ map: getShadowTexture(), transparent: true, opacity: 0.65, depthWrite: false }),
+  );
+  shadow.rotation.x = -Math.PI / 2;
+  shadow.position.y = 0.005;
+  group.add(shadow);
+
   return group;
 }
 
@@ -135,19 +298,33 @@ export const OXYGEN_STATIONS: THREE.Vector3[] = [1, 4, 7].flatMap((row) => {
   return [new THREE.Vector3(-SIDE_AISLE_X - 0.65, 0, z), new THREE.Vector3(SIDE_AISLE_X + 0.65, 0, z)];
 });
 
+/** Exact 3D world position where the oxygen hose connects to the tank's nozzle. */
+export function tankNozzlePosition(station: THREE.Vector3): THREE.Vector3 {
+  const side = Math.sign(station.x);
+  const tankX = station.x + side * 0.3;
+  const tankZ = station.z - 0.45;
+  const tankY = floorHeight(station.z);
+  return new THREE.Vector3(tankX - side * 0.07, tankY + 1.26, tankZ);
+}
+
 function buildTanks(scene: THREE.Scene): void {
-  const placeCluster = (position: THREE.Vector3, count: number) => {
+  const placeCluster = (position: THREE.Vector3, count: number, side: number) => {
     for (let index = 0; index < count; index++) {
-      const tank = buildTank();
+      const tank = buildTank(side);
       tank.position.set(position.x + (index - (count - 1) / 2) * 0.33, position.y, position.z);
       scene.add(tank);
     }
   };
   OXYGEN_STATIONS.forEach((station, index) => {
-    placeCluster(new THREE.Vector3(station.x + Math.sign(station.x) * 0.3, floorHeight(station.z), station.z - 0.45), 2 + (index % 2));
+    const side = Math.sign(station.x);
+    placeCluster(
+      new THREE.Vector3(station.x + side * 0.3, floorHeight(station.z), station.z - 0.45),
+      2 + (index % 2),
+      side,
+    );
   });
-  placeCluster(new THREE.Vector3(-3.4, 0.45, 2.4), 3);
-  placeCluster(new THREE.Vector3(3.4, 0.45, 2.4), 3);
+  placeCluster(new THREE.Vector3(-3.4, 0.45, 2.4), 3, -1);
+  placeCluster(new THREE.Vector3(3.4, 0.45, 2.4), 3, 1);
 }
 
 function pleatedCurtain(width: number, height: number, material: THREE.Material): THREE.Mesh {

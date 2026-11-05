@@ -1,10 +1,13 @@
-import { useCallback, useEffect, useRef, useState, type RefObject, type SubmitEvent } from "react";
-import { DEFAULT_LOOK, NAME_MAX, type Look } from "../shared/look.ts";
+import { useCallback, useEffect, useRef, useState } from "react";
+import type { Look } from "../shared/look.ts";
 import { CAPACITY, ROOM_IDS, type RoomListing, type User } from "../shared/protocol.ts";
-import { fetchConfig, fetchRooms, saveProfile, signInAsGuest, signInForDev, signInWithGoogle, type AuthConfig } from "./api.ts";
+import { fetchConfig, fetchRooms, saveProfile, signInForDev, signInWithGoogle, type AuthConfig } from "./api.ts";
+import { Ati } from "./Ati.tsx";
 import { Customizer } from "./Customizer.tsx";
 import "./home.css";
+import { MusicPlayer } from "./MusicPlayer.tsx";
 import { RoomAccessControls } from "./RoomAccessControls.tsx";
+import { fetchAuthProviders, type AuthProviders } from "./supabase.ts";
 import type { FlagMember, FlagStage } from "./theater/flags.ts";
 import type { CharacterStage, StagePerson } from "./theater/stage.ts";
 
@@ -37,7 +40,7 @@ const STEPS = [
   { title: "Nhập tên, chọn nhân vật", detail: "Áo đấu hay đồ gánh xiếc, lightstick hay cờ T1. Không cần mật khẩu." },
   { title: "Chọn ghế trong khán phòng", detail: "Bấm vào ghế trống. Tên bạn in sau lưng áo cho cả hàng sau đọc." },
   { title: "Xem cùng cả rạp", detail: "Video phát đồng bộ cho mọi người. Đèn rạp tự tối khi trận bắt đầu." },
-  { title: "Hết hơi thì đi thở oxy", detail: "Nhân vật bò tới bình gần nhất, thở 5 giây rồi đi bộ về ghế." },
+  { title: "Hết hơi thì đi thở oxy", detail: "Nhân vật bò ra bình ôxy ở lối đi, kẹp ống thở vào miệng, hít sâu vài hơi rồi đi bộ về ghế." },
 ];
 
 const STATS = [
@@ -81,18 +84,26 @@ const formatTime = (at: number) =>
 
 type Props = {
   user: User | null;
+  notice: string | null;
   onUserChange: (user: User) => void;
   onEnter: (roomId: number) => void;
   onSignOut: () => void;
 };
 
-export function Home({ user, onUserChange, onEnter, onSignOut }: Props) {
+export function Home({ user, notice, onUserChange, onEnter, onSignOut }: Props) {
   const [rooms, setRooms] = useState<RoomListing[] | null>(null);
   const [loadFailed, setLoadFailed] = useState(false);
   const [customizing, setCustomizing] = useState(false);
   const [chosenTab, setChosenTab] = useState<Tab | null>(null);
   const [activeSection, setActiveSection] = useState<string | null>(null);
-  const nameInput = useRef<HTMLInputElement>(null);
+
+  // Mở popup chọn nhân vật và tên sau khi đăng nhập Gmail (hoặc khi là tài khoản mới)
+  useEffect(() => {
+    if (user && (sessionStorage.getItem("open_customizer") === "true" || user.name === "Khách")) {
+      sessionStorage.removeItem("open_customizer");
+      setCustomizing(true);
+    }
+  }, [user]);
 
   // Lights up the menu item for whichever section crosses the middle of the window.
   useEffect(() => {
@@ -130,9 +141,11 @@ export function Home({ user, onUserChange, onEnter, onSignOut }: Props) {
     return () => clearInterval(timer);
   }, [load]);
 
-  const askForName = () => {
-    nameInput.current?.scrollIntoView({ block: "center", behavior: "smooth" });
-    nameInput.current?.focus({ preventScroll: true });
+  const askToSignIn = () => {
+    sessionStorage.setItem("open_customizer", "true");
+    signInWithGoogle().catch(() => {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    });
   };
 
   const all = rooms ?? [];
@@ -141,7 +154,12 @@ export function Home({ user, onUserChange, onEnter, onSignOut }: Props) {
   // Until someone picks a tab, show what is on right now, falling back to what is next.
   const tab: Tab = chosenTab ?? (count("playing") > 0 || count("upcoming") === 0 ? "playing" : "upcoming");
   const shown = all.filter((room) => roomTab(room) === tab);
-  const featured = all.find((room) => roomState(room) === "playing") ?? all.find((room) => room.isOpen) ?? all.find((room) => roomState(room) === "scheduled");
+  // Chọn phòng HOT NHẤT (phòng đang mở có lượng người xem đông nhất)
+  const openRooms = all.filter((room) => room.isOpen);
+  const featured =
+    (openRooms.length > 0
+      ? [...openRooms].sort((a, b) => b.viewers - a.viewers)[0]
+      : all.find((room) => roomState(room) === "scheduled") ?? all[0]) ?? null;
 
   const handleSave = async (name: string, look: Look) => {
     onUserChange(await saveProfile(name, look));
@@ -179,8 +197,8 @@ export function Home({ user, onUserChange, onEnter, onSignOut }: Props) {
               </button>
             </>
           ) : (
-            <button className="site-action is-primary" onClick={askForName}>
-              Nhập tên vào rạp
+            <button className="site-action is-primary" onClick={askToSignIn}>
+              Đăng nhập Gmail
             </button>
           )}
         </div>
@@ -189,49 +207,67 @@ export function Home({ user, onUserChange, onEnter, onSignOut }: Props) {
       <header className="hero">
         <HeroFlags />
         <div className="hero-title">
-          <h1>Rạp chiếu T1</h1>
+          <h1>View Party T1</h1>
           <p>Vào thở oxy cùng T đỏ</p>
         </div>
 
-        <div className="quick-bar">
-          <div className="quick-show">
-            {featured ? (
-              <>
-                <Status room={featured} />
-                <p className="quick-title">{featured.playback.title ?? `${featured.name}: trận đấu sẽ được công bố sau`}</p>
-              </>
-            ) : (
-              <>
-                <p className="status is-closed">{rooms ? "Chưa có suất chiếu" : "Đang tải lịch chiếu"}</p>
-                <p className="quick-title">Rạp xem chung của fan T1. Suất mới sẽ hiện ở đây.</p>
-              </>
-            )}
+        <div className="screening-wrap">
+          <div className="screening-peek">
+            <Ati pose="wave" delay={1.6} />
           </div>
-          <div className="quick-action">
-            {user ? (
-              <>
-                <button className="site-action" onClick={() => setCustomizing(true)}>
-                  Đổi nhân vật
-                </button>
-                {featured?.isOpen ? (
-                  <button className="primary-button" onClick={() => onEnter(featured.id)}>
-                    Vào {featured.name}
+          <div className="screening">
+            <div className="screening-stub">
+              {featured ? (
+                <>
+                  <span>Phòng</span>
+                  <strong>{String(featured.id).padStart(2, "0")}</strong>
+                </>
+              ) : (
+                <img src="/brand/t1-logo.svg" alt="" width="56" height="23" />
+              )}
+            </div>
+            <div className="screening-main">
+              {featured ? (
+                <>
+                  <Status room={featured} />
+                  <p className="screening-title">
+                    {featured.playback.title ?? (featured.isOpen ? `${featured.name}: Trận đấu sẽ được công bố sau` : "Rạp đang chuẩn bị suất chiếu tiếp theo")}
+                  </p>
+                  {featured.isOpen && <SeatMeter room={featured} />}
+                </>
+              ) : (
+                <>
+                  <p className="status">View Party T1</p>
+                  <p className="screening-title">{rooms ? "Chưa có suất chiếu nào mở cửa" : "Đang tải lịch chiếu..."}</p>
+                </>
+              )}
+            </div>
+            <div className="screening-action">
+              {user ? (
+                <>
+                  <button className="site-action" onClick={() => setCustomizing(true)}>
+                    Đổi nhân vật
                   </button>
-                ) : (
-                  <a className="primary-button" href="#lich-chieu">
-                    Xem lịch chiếu
-                  </a>
-                )}
-              </>
-            ) : (
-              <EntryForm
-                inputRef={nameInput}
-                onSignedIn={(next) => {
-                  onUserChange(next);
-                  setCustomizing(true);
-                }}
-              />
-            )}
+                  {featured?.isOpen ? (
+                    <button className="primary-button" onClick={() => onEnter(featured.id)}>
+                      Vào {featured.name}
+                    </button>
+                  ) : (
+                    <a className="primary-button" href="#lich-chieu">
+                      Xem lịch chiếu
+                    </a>
+                  )}
+                </>
+              ) : (
+                <EntryForm
+                  notice={notice}
+                  onSignedIn={(next) => {
+                    onUserChange(next);
+                    setCustomizing(true);
+                  }}
+                />
+              )}
+            </div>
           </div>
         </div>
       </header>
@@ -257,15 +293,18 @@ export function Home({ user, onUserChange, onEnter, onSignOut }: Props) {
           </div>
           {loadFailed && !rooms && <p className="form-error">Không tải được lịch chiếu. Trang sẽ tự thử lại.</p>}
           {rooms && shown.length === 0 && (
-            <p className="schedule-empty">
-              {tab === "playing" && "Chưa có rạp nào đang chiếu. Bình oxy vẫn đầy, chờ chút nhé."}
-              {tab === "upcoming" && "Chưa có suất nào sắp chiếu."}
-              {tab === "closed" && "Tất cả các phòng đều đang mở hoặc đã hẹn giờ."}
-            </p>
+            <div className="schedule-empty">
+              <Ati pose="sleep" className="empty-ati" />
+              <p>
+                {tab === "playing" && "Chưa có rạp nào đang chiếu. Bình oxy vẫn đầy, chờ chút nhé."}
+                {tab === "upcoming" && "Chưa có suất nào sắp chiếu."}
+                {tab === "closed" && "Tất cả các phòng đều đang mở hoặc đã hẹn giờ."}
+              </p>
+            </div>
           )}
           <div className="shows">
             {shown.map((room) => (
-              <ShowCard key={room.id} room={room} user={user} onEnter={onEnter} askForName={askForName} onChanged={load} />
+              <ShowCard key={room.id} room={room} user={user} onEnter={onEnter} askToSignIn={askToSignIn} onChanged={load} />
             ))}
           </div>
         </section>
@@ -277,12 +316,13 @@ export function Home({ user, onUserChange, onEnter, onSignOut }: Props) {
               <figcaption>Đội hình chính thức của gánh xiếc T đỏ.</figcaption>
             </figure>
             <div>
-              <h2>Một buổi xem ở rạp T1</h2>
+              <h2>Một buổi xem tại View Party T1</h2>
               <ol className="steps">
-                {STEPS.map((step) => (
-                  <li key={step.title}>
+                {STEPS.map((step, index) => (
+                  <li key={step.title} className={index === STEPS.length - 1 ? "has-ati" : undefined}>
                     <h3>{step.title}</h3>
                     <p>{step.detail}</p>
+                    {index === STEPS.length - 1 && <Ati pose="mask" className="step-ati" delay={0.8} />}
                   </li>
                 ))}
               </ol>
@@ -307,8 +347,8 @@ export function Home({ user, onUserChange, onEnter, onSignOut }: Props) {
                 Đổi nhân vật
               </button>
             ) : (
-              <button className="primary-button" onClick={askForName}>
-                Nhập tên để bắt đầu
+              <button className="primary-button" onClick={askToSignIn}>
+                Đăng nhập để chọn nhân vật
               </button>
             )}
           </div>
@@ -317,12 +357,14 @@ export function Home({ user, onUserChange, onEnter, onSignOut }: Props) {
       </main>
 
       <footer className="site-foot">
+        <Ati pose="cheer" className="foot-ati" delay={0.4} />
         <img src="/brand/t1-logo.svg" alt="" width="60" height="24" />
         <p className="site-foot-slogan">Chưa tới ván 5 thì chưa hết.</p>
         <p>Trang do người hâm mộ lập, không liên kết với T1 hay Riot Games. Video phát từ YouTube. Mẫu cờ và phong cảnh: LEARS.</p>
       </footer>
 
       {customizing && user && <Customizer name={user.name} look={user.look} onSave={handleSave} onClose={() => setCustomizing(false)} />}
+      <MusicPlayer admin={admin} />
     </div>
   );
 }
@@ -352,7 +394,7 @@ function HeroFlags() {
   const canvas = useRef<HTMLCanvasElement>(null);
   const stage = useRef<FlagStage | null>(null);
   const [plain, setPlain] = useState(false);
-  const [paused, setPaused] = useState(readFlagsPaused);
+  const [paused] = useState(readFlagsPaused);
 
   useEffect(() => {
     let cancelled = false;
@@ -374,16 +416,12 @@ function HeroFlags() {
     };
   }, []);
 
-  const togglePaused = () => {
-    const next = !paused;
-    setPaused(next);
-    stage.current?.setPaused(next);
-    try {
-      localStorage.setItem(FLAGS_PAUSED_KEY, next ? "1" : "0");
-    } catch {
-      // The choice simply will not be remembered next visit.
-    }
-  };
+  useEffect(() => {
+    document.documentElement.dataset.motion = paused ? "paused" : "on";
+    return () => {
+      delete document.documentElement.dataset.motion;
+    };
+  }, [paused]);
 
   return (
     <div className={`hero-banner${plain ? " is-plain" : ""}`}>
@@ -394,11 +432,6 @@ function HeroFlags() {
           <li key={member.name}>{member.name}</li>
         ))}
       </ul>
-      {!plain && (
-        <button className="flags-toggle" onClick={togglePaused}>
-          {paused ? "Cho cờ bay" : "Dừng cờ bay"}
-        </button>
-      )}
     </div>
   );
 }
@@ -431,14 +464,27 @@ type CardProps = {
   room: RoomListing;
   user: User | null;
   onEnter: (roomId: number) => void;
-  askForName: () => void;
+  askToSignIn: () => void;
   onChanged: () => void;
 };
 
-function ShowCard({ room, user, onEnter, askForName, onChanged }: CardProps) {
+function SeatMeter({ room }: { room: RoomListing }) {
+  const filled = Math.min(100, (room.viewers / room.capacity) * 100);
+  return (
+    <div className="seat-meter">
+      <div className="seat-meter-bar" aria-hidden="true">
+        <span style={{ width: `${filled}%` }} />
+      </div>
+      <p>
+        {room.viewers} / {room.capacity} ghế có người
+      </p>
+    </div>
+  );
+}
+
+function ShowCard({ room, user, onEnter, askToSignIn, onChanged }: CardProps) {
   const { videoId } = room.playback;
   const canEnter = room.isOpen || user?.admin === true;
-  const filled = Math.min(100, (room.viewers / room.capacity) * 100);
 
   return (
     <article className="show">
@@ -449,17 +495,10 @@ function ShowCard({ room, user, onEnter, askForName, onChanged }: CardProps) {
       <div className="show-body">
         <Status room={room} />
         <h3>{room.playback.title ?? "Trận đấu sẽ được công bố sau"}</h3>
-        <div className="seat-meter">
-          <div className="seat-meter-bar" aria-hidden="true">
-            <span style={{ width: `${filled}%` }} />
-          </div>
-          <p>
-            {room.viewers} / {room.capacity} ghế có người
-          </p>
-        </div>
+        <SeatMeter room={room} />
         {canEnter ? (
-          <button className="primary-button" onClick={() => (user ? onEnter(room.id) : askForName())}>
-            {user ? (room.isOpen ? "Vào rạp" : "Vào chuẩn bị") : "Nhập tên để vào"}
+          <button className="primary-button" onClick={() => (user ? onEnter(room.id) : askToSignIn())}>
+            {user ? (room.isOpen ? "Vào rạp" : "Vào chuẩn bị") : "Đăng nhập để vào"}
           </button>
         ) : (
           <p className="show-wait">Chưa mở cửa</p>
@@ -470,88 +509,82 @@ function ShowCard({ room, user, onEnter, askForName, onChanged }: CardProps) {
   );
 }
 
-function EntryForm({ inputRef, onSignedIn }: { inputRef: RefObject<HTMLInputElement | null>; onSignedIn: (user: User) => void }) {
-  const [name, setName] = useState("");
+type EntryProps = { notice: string | null; onSignedIn: (user: User) => void };
+
+function EntryForm({ notice, onSignedIn }: EntryProps) {
   const [error, setError] = useState<string | null>(null);
   const [config, setConfig] = useState<AuthConfig | null>(null);
+  const [providers, setProviders] = useState<AuthProviders | null>(null);
 
   useEffect(() => {
-    fetchConfig().then(setConfig, () => {});
+    fetchConfig().then(setConfig, () => { });
+    fetchAuthProviders().then(setProviders, () => setProviders({ anonymous: false, google: false }));
   }, []);
 
-  const submit = (event: SubmitEvent) => {
-    event.preventDefault();
-    setError(null);
-    signInAsGuest(name, DEFAULT_LOOK).then(onSignedIn, (failure: Error) => setError(failure.message));
-  };
+  const fail = (failure: Error) => setError(failure.message);
 
-  const showAdmin = config && (config.googleClientId || config.devLogin);
+  const handleGoogleSignIn = () => {
+    if (providers && !providers.google) {
+      setError("Dự án Supabase chưa bật đăng nhập Google. Hãy vào Supabase Dashboard > Authentication > Providers > bật Google.");
+      return;
+    }
+    sessionStorage.setItem("open_customizer", "true");
+    signInWithGoogle().catch(fail);
+  };
 
   return (
     <div className="entry">
-      <form className="entry-form" onSubmit={submit}>
-        <input
-          ref={inputRef}
-          aria-label="Tên của bạn trong rạp"
-          placeholder="Tên của bạn trong rạp"
-          value={name}
-          maxLength={NAME_MAX}
-          onChange={(event) => setName(event.target.value)}
-          required
-        />
-        <button className="primary-button" type="submit">
-          Chọn nhân vật
-        </button>
-      </form>
+      {notice && !error && (
+        <p className="form-error" role="alert">
+          {notice}
+        </p>
+      )}
       {error && (
         <p className="form-error" role="alert">
           {error}
         </p>
       )}
-      {showAdmin && (
-        <details className="entry-admin">
-          <summary>Đăng nhập quản trị</summary>
-          {config.googleClientId && <GoogleButton clientId={config.googleClientId} onSignedIn={onSignedIn} onError={setError} />}
-          {config.devLogin && (
-            <button
-              type="button"
-              className="link-button"
-              onClick={() => {
-                setError(null);
-                signInForDev(name).then(onSignedIn, (failure: Error) => setError(failure.message));
-              }}
-            >
-              Vào quyền quản trị với tên trên (chỉ khi chạy thử trên máy)
-            </button>
-          )}
-        </details>
-      )}
+      <div className="entry-google" style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "0.6rem" }}>
+        <button
+          type="button"
+          className="google-sign-in-btn"
+          onClick={handleGoogleSignIn}
+        >
+          <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true">
+            <path
+              fill="#4285F4"
+              d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+            />
+            <path
+              fill="#34A853"
+              d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+            />
+            <path
+              fill="#FBBC05"
+              d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
+            />
+            <path
+              fill="#EA4335"
+              d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
+            />
+          </svg>
+          Đăng nhập bằng Gmail (Google)
+        </button>
+        {config?.devLogin && (
+          <button
+            type="button"
+            className="link-button"
+            onClick={() => {
+              setError(null);
+              signInForDev("Dev Admin").then((devUser) => {
+                onSignedIn(devUser);
+              }, fail);
+            }}
+          >
+            Vào quyền quản trị DEV (chỉ khi chạy thử trên máy)
+          </button>
+        )}
+      </div>
     </div>
   );
-}
-
-function GoogleButton({ clientId, onSignedIn, onError }: { clientId: string; onSignedIn: (user: User) => void; onError: (message: string | null) => void }) {
-  const target = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const script = document.createElement("script");
-    script.src = "https://accounts.google.com/gsi/client";
-    script.async = true;
-    script.onload = () => {
-      window.google?.accounts.id.initialize({
-        client_id: clientId,
-        callback: ({ credential }) => {
-          signInWithGoogle(credential).then(onSignedIn, (failure: Error) => onError(failure.message));
-        },
-      });
-      if (target.current) {
-        window.google?.accounts.id.renderButton(target.current, { theme: "filled_black", size: "large", shape: "pill", locale: "vi" });
-      }
-    };
-    script.onerror = () => onError("Không tải được đăng nhập Google. Hãy kiểm tra mạng rồi tải lại trang.");
-    document.head.append(script);
-    return () => script.remove();
-  }, [clientId, onSignedIn, onError]);
-
-  return <div ref={target} className="google-button" />;
 }

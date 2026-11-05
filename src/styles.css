@@ -304,22 +304,8 @@ input[type="range"] {
 /* Cheering */
 .floater {
   position: absolute;
-  animation: floater-rise 1.8s ease-out forwards;
-}
-
-@keyframes floater-rise {
-  from {
-    opacity: 0;
-    transform: translate(-50%, -50%) scale(0.5);
-  }
-  15% {
-    opacity: 1;
-    transform: translate(-50%, -90%) scale(1.15);
-  }
-  to {
-    opacity: 0;
-    transform: translate(-50%, -360%) scale(1);
-  }
+  width: 0;
+  height: 0;
 }
 
 .reaction-svg {
@@ -370,6 +356,19 @@ input[type="range"] {
   background: #3b151e;
 }
 
+.reaction-button:active:not(:disabled) {
+  transform: scale(0.85);
+}
+
+.reaction-ati {
+  display: block;
+  width: 2.1rem;
+  height: 2.1rem;
+  object-fit: contain;
+  filter: drop-shadow(0 0 3px rgba(255, 255, 255, 0.5));
+  pointer-events: none;
+}
+
 .reaction-button:disabled {
   opacity: 0.45;
   cursor: not-allowed;
@@ -386,6 +385,15 @@ input[type="range"] {
 }
 
 .dock-button.is-cheer[aria-pressed="true"] {
+  color: var(--black);
+}
+
+.dock-button.is-prank {
+  color: var(--gold-bright);
+}
+
+.dock-button.is-prank[aria-pressed="true"] {
+  background: var(--gold);
   color: var(--black);
 }
 
@@ -748,6 +756,20 @@ input[type="range"] {
   gap: 0.15rem;
 }
 
+/* Prank bar uses the exact same pill style as .reaction-bar */
+.reaction-button.prank-button[aria-pressed="true"] {
+  background: #4a1822;
+  box-shadow: inset 0 0 0 1.5px var(--gold-bright), 0 0 8px rgba(255, 184, 0, 0.35);
+}
+
+.prank-icon-head {
+  width: 1.85rem;
+  height: 1.85rem;
+  object-fit: contain;
+  pointer-events: none;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.45));
+}
+
 .dock-button {
   padding: 0.4rem 0.7rem;
   border: 0;
@@ -943,6 +965,7 @@ input[type="range"] {
 
 /* Chat */
 .chat {
+  position: relative;
   flex: 1;
   min-height: 0;
   display: flex;
@@ -1059,7 +1082,892 @@ input[type="range"] {
     transform: translate(0, -50%);
   }
 
-  .floater {
-    animation-duration: 0.01s;
+}
+
+.cast-tip {
+  pointer-events: none;
+}
+
+/* Reactions: every kind has its own motion, centred on the head of whoever sent it. */
+.burst {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 0;
+  height: 0;
+}
+
+.burst b {
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: block;
+  font-weight: inherit;
+  will-change: transform, opacity;
+}
+
+/* T1: the logo stamps down with a shake, shockwaves ring out and small logos fan around it. */
+.burst-t1 {
+  top: -1.2rem;
+}
+
+.burst-stamp {
+  position: absolute;
+  left: 0;
+  top: 0;
+  animation: burst-stamp 2s ease-out both;
+}
+
+.burst-stamp .reaction-t1 {
+  width: 4.6rem;
+  filter: drop-shadow(0 0 8px rgba(226, 1, 45, 0.9)) drop-shadow(0 0 2px #fff);
+}
+
+@keyframes burst-stamp {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -150%) scale(2.6);
   }
+  12% {
+    opacity: 1;
+    transform: translate(-50%, -60%) scale(1);
+  }
+  18% {
+    transform: translate(-46%, -60%) scale(1.12) rotate(-4deg);
+  }
+  24% {
+    transform: translate(-54%, -60%) scale(1) rotate(4deg);
+  }
+  30% {
+    transform: translate(-50%, -60%) scale(1.04);
+  }
+  75% {
+    opacity: 1;
+    transform: translate(-50%, -85%) scale(1.05);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -140%) scale(1);
+  }
+}
+
+.burst-ring {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 3.4rem;
+  height: 3.4rem;
+  margin: -1.7rem 0 0 -1.7rem;
+  border: 3px solid #ff2d55;
+  border-radius: 50%;
+  box-shadow: 0 0 14px rgba(255, 45, 85, 0.8);
+  animation: burst-ring 1.1s ease-out 0.15s both;
+}
+
+.burst-ring.is-late {
+  animation-delay: 0.4s;
+  border-color: #ffd36b;
+}
+
+@keyframes burst-ring {
+  from {
+    opacity: 0.95;
+    transform: scale(0.2);
+  }
+  to {
+    opacity: 0;
+    transform: scale(3.4);
+  }
+}
+
+.burst-fan {
+  animation: burst-fan 1.5s cubic-bezier(0.2, 0.7, 0.3, 1) var(--delay) both;
+}
+
+.burst-fan .reaction-t1 {
+  width: 1.6rem;
+}
+
+@keyframes burst-fan {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.2);
+  }
+  15% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))) rotate(var(--rot)) scale(var(--size));
+  }
+}
+
+/* Ati: five heads bounce along the ground, each lower than the last. */
+.burst-ati {
+  top: 0.5rem;
+}
+
+.burst-hop {
+  animation: burst-hop 2s var(--delay) both;
+}
+
+.burst-hop .reaction-ati {
+  width: 2.6rem;
+  height: 2.6rem;
+}
+
+@keyframes burst-hop {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.3);
+  }
+  8% {
+    opacity: 1;
+    transform: translate(calc(-50% + var(--dx) * 0.2), calc(-50% - 80px)) rotate(var(--rot)) scale(var(--size));
+  }
+  28% {
+    transform: translate(calc(-50% + var(--dx) * 0.5), -50%) rotate(calc(var(--rot) * -1)) scale(var(--size));
+  }
+  42% {
+    transform: translate(calc(-50% + var(--dx) * 0.65), calc(-50% - 40px)) rotate(var(--rot)) scale(var(--size));
+  }
+  58% {
+    transform: translate(calc(-50% + var(--dx) * 0.8), -50%) scale(var(--size));
+  }
+  70% {
+    transform: translate(calc(-50% + var(--dx) * 0.88), calc(-50% - 16px)) scale(var(--size));
+  }
+  82% {
+    opacity: 1;
+    transform: translate(calc(-50% + var(--dx) * 0.95), -50%) scale(var(--size));
+  }
+  100% {
+    opacity: 0;
+    transform: translate(calc(-50% + var(--dx)), -50%) scale(var(--size));
+  }
+}
+
+/* Stars: a quick burst outward, then they drift down twinkling. */
+.burst-shot {
+  animation: burst-shot 2s cubic-bezier(0.15, 0.8, 0.3, 1) var(--delay) both;
+}
+
+.burst-shot .reaction-svg {
+  width: 1.9rem;
+  height: 1.9rem;
+  filter: drop-shadow(0 0 6px rgba(255, 211, 107, 0.95));
+}
+
+@keyframes burst-shot {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.2);
+  }
+  10% {
+    opacity: 1;
+  }
+  45% {
+    opacity: 1;
+    transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))) rotate(calc(var(--rot) * 0.6)) scale(var(--size));
+  }
+  100% {
+    opacity: 0;
+    transform: translate(calc(-50% + var(--dx) * 1.1), calc(-50% + var(--dy) + 110px)) rotate(var(--rot)) scale(calc(var(--size) * 0.5));
+  }
+}
+
+/* Cup: it rises in a golden halo with sparkles, and the hall rains gold confetti. */
+.burst-cup {
+  top: -3.4rem;
+}
+
+.burst-halo {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 8rem;
+  height: 8rem;
+  margin: -4rem 0 0 -4rem;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 223, 130, 0.85), rgba(255, 190, 60, 0.35) 45%, transparent 70%);
+  animation: burst-halo 3s ease-out both;
+}
+
+@keyframes burst-halo {
+  0% {
+    opacity: 0;
+    transform: scale(0.2);
+  }
+  25% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  60% {
+    opacity: 0.8;
+    transform: scale(1.25);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.6);
+  }
+}
+
+.burst-trophy {
+  position: absolute;
+  left: 0;
+  top: 0;
+  animation: burst-trophy 3s ease-out both;
+}
+
+.burst-trophy .reaction-svg {
+  width: 4.4rem;
+  height: 4.4rem;
+  filter: drop-shadow(0 0 10px rgba(255, 211, 107, 0.95));
+}
+
+@keyframes burst-trophy {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, 40%) scale(0.3);
+  }
+  22% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1.3) rotate(-6deg);
+  }
+  34% {
+    transform: translate(-50%, -52%) scale(1.1) rotate(6deg);
+  }
+  50% {
+    transform: translate(-50%, -52%) scale(1.15) rotate(-3deg);
+  }
+  80% {
+    opacity: 1;
+    transform: translate(-50%, -60%) scale(1.15);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -110%) scale(1.1);
+  }
+}
+
+.burst-spark {
+  animation: burst-twinkle 1.6s ease-in-out var(--delay) both;
+}
+
+.burst-spark .reaction-svg {
+  width: 1.2rem;
+  height: 1.2rem;
+}
+
+@keyframes burst-twinkle {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0);
+  }
+  30% {
+    opacity: 1;
+    transform: translate(calc(-50% + var(--dx) * 0.6), calc(-50% + var(--dy) * 0.6)) scale(var(--size)) rotate(90deg);
+  }
+  60% {
+    opacity: 0.3;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))) scale(0) rotate(180deg);
+  }
+}
+
+/* Hearts and flames climb like smoke, each swaying (hearts also beat, flames flicker). */
+.burst-rise {
+  animation: burst-rise 2.3s ease-out var(--delay) both;
+}
+
+.burst-rise > span {
+  display: block;
+  animation: burst-sway 1.1s ease-in-out infinite alternate;
+}
+
+.burst-heart .burst-rise > span {
+  animation: burst-sway 1.1s ease-in-out infinite alternate, burst-beat 0.55s ease-in-out infinite;
+}
+
+.burst-flame .burst-rise > span {
+  transform-origin: 50% 100%;
+  animation: burst-sway 0.45s ease-in-out infinite alternate, burst-flicker 0.3s ease-in-out infinite alternate;
+}
+
+.burst-heart .reaction-svg {
+  filter: drop-shadow(0 0 5px rgba(255, 70, 110, 0.9));
+}
+
+.burst-flame .reaction-svg {
+  width: 2.3rem;
+  height: 2.3rem;
+  filter: drop-shadow(0 0 8px rgba(255, 122, 26, 0.95));
+}
+
+@keyframes burst-rise {
+  0% {
+    opacity: 0;
+    transform: translate(calc(-50% + var(--dx) * 0.3), -50%) scale(0.3);
+  }
+  15% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))) scale(var(--size));
+  }
+}
+
+@keyframes burst-sway {
+  from {
+    translate: calc(var(--sway) * -1) 0;
+  }
+  to {
+    translate: var(--sway) 0;
+  }
+}
+
+@keyframes burst-beat {
+  50% {
+    transform: scale(1.25);
+  }
+}
+
+@keyframes burst-flicker {
+  from {
+    transform: scale(0.9, 1.15) skewX(-5deg);
+  }
+  to {
+    transform: scale(1.1, 0.9) skewX(5deg);
+  }
+}
+
+/* GG: a gold word popping in over the head, and a huge one across the hall. */
+.burst-gg {
+  top: -1.4rem;
+  text-align: center;
+}
+
+.burst-gg span,
+.hall-gg span {
+  display: block;
+  background: linear-gradient(#fff3c4, #ffc83d 55%, #e08a00);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-stroke: 2px #2a0a10;
+  paint-order: stroke fill;
+  font: 900 3.2rem/1 var(--display);
+  filter: drop-shadow(0 3px 0 #2a0a10);
+}
+
+.burst-gg > span {
+  position: absolute;
+  left: 0;
+  top: 0;
+  translate: -50% -50%;
+  animation: burst-pop 2.4s ease-out both;
+}
+
+.burst-gg small {
+  display: none;
+}
+
+@keyframes burst-pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.2) rotate(-12deg);
+  }
+  14% {
+    opacity: 1;
+    transform: scale(1.4) rotate(3deg);
+  }
+  24% {
+    transform: scale(1) rotate(-2deg);
+  }
+  78% {
+    opacity: 1;
+    transform: scale(1.05) translateY(-14px);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.1) translateY(-40px);
+  }
+}
+
+.hall-gg {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 0.4rem;
+  animation: hall-gg 2.6s ease-out both;
+  background: radial-gradient(circle at 50% 45%, rgba(255, 200, 61, 0.22), transparent 55%);
+}
+
+.hall-gg span {
+  font-size: clamp(5rem, 22vw, 13rem);
+  -webkit-text-stroke-width: 4px;
+  filter: drop-shadow(0 6px 0 #2a0a10) drop-shadow(0 0 24px rgba(255, 200, 61, 0.7));
+}
+
+.hall-gg small {
+  padding: 0.2rem 0.8rem;
+  border-radius: 999px;
+  background: rgba(20, 7, 11, 0.8);
+  color: var(--gold-bright);
+  font-weight: 700;
+}
+
+@keyframes hall-gg {
+  0% {
+    opacity: 0;
+    transform: scale(3) rotate(-8deg);
+  }
+  12% {
+    opacity: 1;
+    transform: scale(1) rotate(0);
+  }
+  16% {
+    transform: translateX(-10px);
+  }
+  20% {
+    transform: translateX(10px);
+  }
+  24% {
+    transform: translateX(-6px);
+  }
+  28% {
+    transform: translateX(0);
+  }
+  80% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.2);
+  }
+}
+
+/* Whole-hall effects. */
+.hall-glow {
+  position: absolute;
+  inset: auto 0 0;
+  height: 62%;
+  background: radial-gradient(ellipse at 50% 100%, rgba(255, 122, 26, 0.8), rgba(255, 60, 20, 0.32) 45%, transparent 72%);
+  mix-blend-mode: screen;
+  animation: hall-glow 2.4s ease-out both;
+}
+
+@keyframes hall-glow {
+  0% {
+    opacity: 0;
+  }
+  15% {
+    opacity: 1;
+  }
+  35% {
+    opacity: 0.65;
+  }
+  50% {
+    opacity: 1;
+  }
+  70% {
+    opacity: 0.7;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+.hall-flash {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 50% 42%, rgba(226, 1, 45, 0.55), transparent 65%);
+  animation: hall-flash 1.1s ease-out both;
+}
+
+@keyframes hall-flash {
+  0% {
+    opacity: 0;
+  }
+  15% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+.hall-confetti {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+
+.hall-confetti i {
+  position: absolute;
+  top: -4%;
+  width: 0.55rem;
+  height: 0.95rem;
+  border-radius: 1px;
+  animation: hall-fall var(--fall) linear var(--delay) both;
+}
+
+.confetti-0 {
+  background: #ffd36b;
+}
+
+.confetti-1 {
+  background: #fff3c4;
+}
+
+.confetti-2 {
+  background: #e2012d;
+}
+
+@keyframes hall-fall {
+  from {
+    opacity: 1;
+    transform: translateY(0) rotate(0deg);
+  }
+  to {
+    opacity: 0.9;
+    transform: translateY(108vh) rotate(var(--rot));
+  }
+}
+
+
+/* ==========================================================================
+   Sticker Picker and In-Chat / In-Hall Sticker System
+   ========================================================================== */
+
+.dock-chat-wrapper {
+  position: relative;
+  flex: 0 1 18rem;
+  min-width: 10rem;
+}
+
+.dock-chat {
+  display: flex;
+  align-items: center;
+  position: relative;
+  width: 100%;
+}
+
+.dock-sticker-trigger {
+  position: absolute;
+  left: 0.35rem;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.85rem;
+  height: 1.85rem;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: #ffd36b;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  z-index: 2;
+}
+
+.dock-sticker-trigger:hover,
+.dock-sticker-trigger.is-active {
+  background: rgba(201, 156, 75, 0.25);
+  color: #ffffff;
+  transform: translateY(-50%) scale(1.08);
+}
+
+.dock-chat input {
+  width: 100%;
+  padding: 0.35rem 0.7rem 0.35rem 2.3rem !important;
+  border-color: #5a4322;
+  border-radius: 9px;
+  font-size: 0.85rem;
+}
+
+.dock-sticker-modal {
+  position: absolute;
+  bottom: 4.4rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 100;
+  width: 380px;
+  max-width: calc(100vw - 1rem);
+  animation: sticker-popup-in 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.chat-drawer-sticker-popup {
+  position: absolute;
+  bottom: 4.8rem;
+  left: 0.6rem;
+  right: 0.6rem;
+  z-index: 100;
+  animation: drawer-sticker-popup-in 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes sticker-popup-in {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(8px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0) scale(1);
+  }
+}
+
+@keyframes drawer-sticker-popup-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.sticker-picker {
+  background: #190c13;
+  border: 1px solid rgba(201, 156, 75, 0.35);
+  border-radius: 18px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.85), 0 0 0 1px rgba(255, 255, 255, 0.05);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  max-height: 480px;
+  backdrop-filter: blur(12px);
+}
+
+.sticker-picker-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 1.05rem 1.15rem 0.5rem;
+}
+
+.sticker-picker-titles strong {
+  display: block;
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: #ffd36b;
+  letter-spacing: -0.01em;
+}
+
+.sticker-picker-titles span {
+  display: block;
+  font-size: 0.82rem;
+  color: #c4a5ae;
+  margin-top: 0.15rem;
+}
+
+.sticker-picker-close {
+  background: transparent;
+  border: none;
+  color: #9f8a90;
+  font-size: 1.15rem;
+  cursor: pointer;
+  padding: 0.2rem 0.4rem;
+  border-radius: 6px;
+  line-height: 1;
+  transition: all 0.15s;
+}
+
+.sticker-picker-close:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.sticker-picker-search {
+  position: relative;
+  padding: 0 1.15rem 0.6rem;
+}
+
+.sticker-picker-search input {
+  width: 100%;
+  padding: 0.45rem 0.85rem;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(201, 156, 75, 0.25);
+  border-radius: 8px;
+  color: #f1f5f9;
+  font-size: 0.82rem;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.sticker-picker-search input:focus {
+  border-color: #ffd36b;
+}
+
+.sticker-search-clear {
+  position: absolute;
+  right: 1.6rem;
+  top: 50%;
+  transform: translateY(-60%);
+  background: transparent;
+  border: none;
+  color: #888;
+  font-size: 1.15rem;
+  cursor: pointer;
+}
+
+.sticker-asset-list {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  padding: 0.4rem 1.15rem 1.15rem;
+  overflow-y: auto;
+  max-height: 330px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(201, 156, 75, 0.45) rgba(0, 0, 0, 0.25);
+}
+
+.sticker-asset-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.sticker-asset-list::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.25);
+  border-radius: 3px;
+}
+
+.sticker-asset-list::-webkit-scrollbar-thumb {
+  background: rgba(201, 156, 75, 0.45);
+  border-radius: 3px;
+}
+
+.sticker-asset-list::-webkit-scrollbar-thumb:hover {
+  background: rgba(201, 156, 75, 0.7);
+}
+
+.sticker-asset {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 4px 6px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.16s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.sticker-asset:hover {
+  background: rgba(201, 156, 75, 0.18);
+  border-color: rgba(201, 156, 75, 0.55);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+.sticker-asset:active {
+  transform: scale(0.96);
+}
+
+.sticker-asset-thumb {
+  width: 52px;
+  height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sticker-asset-thumb img {
+  max-width: 52px;
+  max-height: 52px;
+  object-fit: contain;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.4));
+}
+
+.sticker-asset-name {
+  margin-top: 5px;
+  font-size: 0.74rem;
+  color: #e2d5c8;
+  text-align: center;
+  max-width: 90%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sticker-empty {
+  grid-column: 1 / -1;
+  text-align: center;
+  padding: 2rem 1rem;
+  color: #8c767e;
+  font-size: 0.85rem;
+}
+
+/* Chat Trigger Button in Drawer */
+.chat-sticker-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.15rem;
+  height: 2.15rem;
+  padding: 0;
+  border: 1px solid rgba(201, 156, 75, 0.4);
+  background: rgba(35, 15, 22, 0.85);
+  color: #ffd36b;
+  border-radius: 8px;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all 0.15s ease;
+}
+
+.chat-sticker-trigger:hover,
+.chat-sticker-trigger.is-active {
+  background: rgba(201, 156, 75, 0.25);
+  color: #ffffff;
+  border-color: #ffd36b;
+}
+
+/* Chat Messages with Sticker */
+.chat-msg-sticker {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  margin-top: 0.35rem;
+}
+
+.chat-sticker-img {
+  max-width: 96px;
+  max-height: 96px;
+  object-fit: contain;
+  border-radius: 8px;
+  filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.5));
+}
+
+.chat-sticker-caption {
+  font-size: 0.7rem;
+  color: #ffd36b;
+  opacity: 0.8;
+  margin-top: 2px;
+}
+
+/* 3D Bubble with Sticker */
+.bubble.is-sticker {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0.35rem 0.65rem;
+  background: rgba(22, 11, 16, 0.94);
+  border: 1px solid rgba(201, 156, 75, 0.6);
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.65), 0 0 12px rgba(226, 1, 45, 0.25);
+}
+
+.bubble-sticker-img {
+  max-width: 76px;
+  max-height: 76px;
+  object-fit: contain;
+  margin-top: 3px;
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.7));
 }

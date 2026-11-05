@@ -1,0 +1,80 @@
+/* Ati, T1's mascot: one picture per pose, moved by CSS only. */
+.ati {
+  display: block;
+  width: 100%;
+  height: auto;
+  pointer-events: none;
+  user-select: none;
+  transform-origin: 50% 100%;
+  animation: var(--ati-motion, ati-bob) var(--ati-time, 3.2s) ease-in-out infinite;
+  animation-delay: var(--ati-delay, 0s);
+}
+
+.ati-wave {
+  --ati-motion: ati-wave;
+  --ati-time: 2.4s;
+}
+
+.ati-mask {
+  --ati-motion: ati-breathe;
+  --ati-time: 3.6s;
+}
+
+.ati-sleep {
+  --ati-motion: ati-nod;
+  --ati-time: 4.6s;
+}
+
+.ati-cheer {
+  --ati-motion: ati-jump;
+  --ati-time: 0.9s;
+}
+
+@keyframes ati-bob {
+  50% {
+    transform: translateY(-6%) scale(1.02, 0.98);
+  }
+}
+
+/* Leans from side to side as if waving back. */
+@keyframes ati-wave {
+  0%,
+  100% {
+    transform: rotate(-6deg);
+  }
+  50% {
+    transform: rotate(7deg) translateY(-4%);
+  }
+}
+
+@keyframes ati-breathe {
+  50% {
+    transform: scale(1.05, 1.07);
+  }
+}
+
+@keyframes ati-nod {
+  0%,
+  100% {
+    transform: rotate(0deg) scale(1, 1);
+  }
+  50% {
+    transform: rotate(-5deg) scale(1.03, 0.97);
+  }
+}
+
+@keyframes ati-jump {
+  0%,
+  100% {
+    transform: translateY(0) scale(1.03, 0.97);
+  }
+  45% {
+    transform: translateY(-14%) scale(0.97, 1.04);
+  }
+}
+
+/* The pause button in the hero stops all motion on the page, Ati included. */
+[data-motion="paused"] .ati {
+  animation: none !important;
+}
+

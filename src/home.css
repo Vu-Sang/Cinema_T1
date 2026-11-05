@@ -275,41 +275,134 @@
   font: 500 clamp(1.05rem, 1.7vw, 1.45rem) / 1.3 var(--display);
 }
 
-.quick-bar {
+/* Tonight's showing as a cinema ticket: a stub with the room number, the film, then the way in.
+   Ati peeks over the top edge from behind it. */
+.screening-wrap {
   position: relative;
-  z-index: 2;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem 2.5rem;
-  width: min(calc(100% - 2 * var(--gutter)), 68rem);
-  margin: 1.25rem auto 0;
-  padding: 1.15rem 1.5rem;
-  border: 2px solid var(--gold);
-  border-radius: 10px;
-  background: var(--surface);
-  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.55);
+  width: min(calc(100% - 2 * var(--gutter)), 72rem);
+  margin: 2.8rem auto 0;
 }
 
-.quick-show {
-  flex: 1 1 18rem;
-  min-width: 0;
+.screening {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  overflow: hidden;
+  border-radius: 14px;
+  background: linear-gradient(120deg, #2b0e15 0%, #1a0910 60%, #150709 100%);
+  box-shadow:
+    inset 0 0 0 2px rgba(217, 173, 79, 0.85),
+    0 18px 50px rgba(0, 0, 0, 0.65),
+    0 0 40px rgba(226, 1, 45, 0.16);
 }
 
-.quick-title {
+.screening-stub {
+  position: relative;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 0.1rem;
+  min-width: 7.5rem;
+  padding: 1.1rem 1.6rem;
+  border-right: 2px dashed rgba(217, 173, 79, 0.5);
+}
+
+.screening-stub span {
+  color: var(--muted);
+  font-size: 0.9rem;
   font-weight: 600;
+}
+
+.screening-stub strong {
+  color: var(--gold-bright);
+  font: 900 2.9rem / 1 var(--display);
+}
+
+/* The two bites where a ticket would tear. The page colour fills them, and the ticket's overflow hides the outer half. */
+.screening-stub::before,
+.screening-stub::after {
+  content: "";
+  position: absolute;
+  right: -0.65rem;
+  width: 1.3rem;
+  height: 1.3rem;
+  border-radius: 50%;
+  background: var(--ground);
+  box-shadow: inset 0 0 0 2px rgba(217, 173, 79, 0.85);
+}
+
+.screening-stub::before {
+  top: -0.65rem;
+}
+
+.screening-stub::after {
+  bottom: -0.65rem;
+}
+
+.screening-main {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 1.1rem 1.6rem;
+}
+
+.screening-title {
+  margin: 0;
+  font-size: 1.2rem;
+  font-weight: 700;
   line-height: 1.4;
   overflow-wrap: anywhere;
 }
 
-.quick-action {
-  flex: 1 1 24rem;
+.screening-main .seat-meter {
+  max-width: 22rem;
+  margin-top: 0.1rem;
+  padding-top: 0;
+}
+
+.screening-action {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   justify-content: flex-end;
   gap: 0.75rem;
+  padding: 1.1rem 1.6rem 1.1rem 0;
+}
+
+/* A window above the ticket's top edge. Ati stands inside it and only the part above the edge shows, so it looks
+   like Ati is leaning over the ticket. The window is a little wider than Ati so a raised arm is not cut off. */
+.screening-peek {
+  position: absolute;
+  right: 2.4rem;
+  bottom: calc(100% - 1px);
+  z-index: 0;
+  display: flex;
+  justify-content: center;
+  width: 8rem;
+  height: 6.9rem;
+  overflow: hidden;
+}
+
+.screening-peek .ati {
+  flex: none;
+  width: 6.4rem;
+  align-self: flex-start;
+  animation:
+    ati-pop 0.9s cubic-bezier(0.34, 1.56, 0.64, 1) 1.4s both,
+    ati-wave 2.4s ease-in-out 2.4s infinite;
+}
+
+@keyframes ati-pop {
+  from {
+    transform: translateY(105%);
+  }
+}
+
+[data-motion="paused"] .screening-peek .ati {
+  animation: none !important;
 }
 
 .status {
@@ -379,10 +472,39 @@
   cursor: pointer;
 }
 
-.entry-admin .link-button {
+.google-sign-in-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1.8rem;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 999px;
+  background: #ffffff;
+  color: #1f1f1f;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.35);
+  transition: all 0.2s ease;
+}
+
+.google-sign-in-btn:hover {
+  background: #f1f3f4;
+  border-color: #ffffff;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+}
+
+.google-sign-in-btn svg {
+  flex-shrink: 0;
+}
+
+.entry-google .link-button {
   margin-top: 0.3rem;
   color: var(--muted);
-  text-align: left;
+  text-align: center;
+  font-size: 0.85rem;
 }
 
 /* The same LED strip as under the theatre screen. */
@@ -390,33 +512,45 @@
   overflow: hidden;
   border-block: 1px solid var(--edge);
   background: #0b0705;
+  user-select: none;
+}
+
+.marquee:hover .marquee-track {
+  animation-play-state: paused;
 }
 
 .marquee-track {
   display: flex;
   width: max-content;
-  animation: marquee-run 90s linear infinite;
+  will-change: transform;
+  animation: marquee-run 28s linear infinite;
 }
 
 .marquee-track span {
-  padding: 0.6rem 2rem;
+  display: inline-flex;
+  align-items: center;
+  padding: 0.65rem 2.5rem;
   color: #ffc15a;
   font-size: 1rem;
   font-weight: 600;
-  letter-spacing: 0.03em;
-  text-shadow: 0 0 6px rgba(255, 170, 60, 0.7);
+  letter-spacing: 0.04em;
+  text-shadow: 0 0 8px rgba(255, 170, 60, 0.7);
   white-space: nowrap;
 }
 
 @keyframes marquee-run {
-  to {
-    transform: translateX(-33.333%);
+  0% {
+    transform: translate3d(0, 0, 0);
+  }
+
+  100% {
+    transform: translate3d(-33.333333%, 0, 0);
   }
 }
 
 /* Schedule */
 .schedule {
-  width: var(--page);
+  width: min(100%, 86rem);
   margin-inline: auto;
   padding: clamp(3rem, 7vw, 5.5rem) var(--gutter);
   scroll-margin-top: 4rem;
@@ -471,12 +605,45 @@
   color: var(--muted);
 }
 
+.schedule-empty {
+  display: grid;
+  justify-items: center;
+  gap: 0.4rem;
+}
+
+.empty-ati {
+  width: 4.6rem;
+}
+
+.steps li.has-ati {
+  min-height: 5rem;
+  padding-right: 6rem;
+}
+
+.step-ati {
+  position: absolute;
+  top: -2.6rem;
+  right: 0;
+  width: 4.4rem;
+}
+
+.foot-ati {
+  width: 5.4rem;
+  margin-bottom: 0.25rem;
+}
+
 .shows {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 26rem));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   justify-content: center;
   gap: 1.5rem;
   text-align: left;
+}
+
+@media (max-width: 960px) {
+  .shows {
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr));
+  }
 }
 
 .show {
@@ -778,6 +945,555 @@
   font: 500 1.1rem var(--display);
 }
 
+/* Floating background music controller */
+.music-player-wrap {
+  position: fixed;
+  right: 1.5rem;
+  bottom: 1.5rem;
+  z-index: 99;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.music-admin-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 1px solid var(--gold);
+  background: rgba(22, 13, 13, 0.88);
+  backdrop-filter: blur(10px);
+  color: var(--gold-bright);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5);
+  transition: transform 0.2s ease, border-color 0.2s ease, background-color 0.2s ease;
+  padding: 0;
+}
+
+.music-admin-btn:hover {
+  transform: scale(1.1);
+  border-color: var(--gold-bright);
+  background: rgba(35, 20, 20, 0.98);
+  color: #fff;
+  box-shadow: 0 4px 18px rgba(229, 9, 20, 0.4);
+}
+
+.music-toggle-btn {
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  border: 1.5px solid var(--gold);
+  background: rgba(20, 12, 12, 0.88);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  color: var(--gold-bright);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.6), 0 0 15px rgba(229, 9, 20, 0.25);
+  transition: transform 0.2s cubic-bezier(0.2, 0, 0, 1),
+              border-color 0.2s ease,
+              box-shadow 0.2s ease,
+              background-color 0.2s ease;
+  padding: 0;
+  outline: none;
+}
+
+.music-toggle-btn:hover {
+  transform: scale(1.08);
+  border-color: var(--gold-bright);
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.75), 0 0 20px rgba(229, 9, 20, 0.45);
+  background: rgba(30, 18, 18, 0.95);
+}
+
+.music-toggle-btn:active {
+  transform: scale(0.95);
+}
+
+.music-toggle-btn.is-playing {
+  border-color: var(--gold-bright);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.6), 0 0 18px rgba(235, 185, 90, 0.4);
+}
+
+.music-toggle-btn.is-paused {
+  opacity: 0.75;
+  color: var(--muted);
+  border-color: var(--edge);
+}
+
+.music-toggle-btn.is-paused:hover {
+  opacity: 1;
+  color: var(--gold-bright);
+  border-color: var(--gold);
+}
+
+/* Animated audio equalizer bars */
+.music-bars {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 3px;
+  height: 18px;
+  width: 20px;
+}
+
+.music-bars .bar {
+  flex: 1;
+  background: var(--gold-bright);
+  border-radius: 2px;
+  transform-origin: bottom;
+  animation: equalize 1.2s ease-in-out infinite alternate;
+}
+
+.music-bars .bar-1 {
+  height: 40%;
+  animation-delay: 0.1s;
+}
+
+.music-bars .bar-2 {
+  height: 85%;
+  animation-delay: 0.4s;
+}
+
+.music-bars .bar-3 {
+  height: 60%;
+  animation-delay: 0.2s;
+}
+
+.music-bars .bar-4 {
+  height: 100%;
+  animation-delay: 0.5s;
+}
+
+@keyframes equalize {
+  0% {
+    height: 25%;
+  }
+  50% {
+    height: 100%;
+  }
+  100% {
+    height: 35%;
+  }
+}
+
+/* Admin Music Configuration Modal */
+.music-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: rgba(0, 0, 0, 0.82);
+  backdrop-filter: blur(6px);
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  overflow-y: auto;
+}
+
+.music-modal-card {
+  width: min(44rem, 100%);
+  max-height: calc(100dvh - 2rem);
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border: 1px solid var(--gold);
+  border-radius: 14px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.8), 0 0 30px rgba(229, 9, 20, 0.25);
+  overflow: hidden;
+  animation: modalIn 0.25s ease-out;
+}
+
+@keyframes modalIn {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.music-modal-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.25rem 1.5rem;
+  border-bottom: 1px solid var(--edge);
+  background: rgba(229, 9, 20, 0.08);
+}
+
+.music-modal-header h3 {
+  margin: 0;
+  font-size: 1.35rem;
+  color: var(--gold-bright);
+}
+
+.music-modal-header p {
+  margin: 0.25rem 0 0;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+.music-modal-close {
+  background: none;
+  border: 1px solid var(--edge);
+  border-radius: 50%;
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 1rem;
+  transition: all 0.2s ease;
+}
+
+.music-modal-close:hover {
+  border-color: var(--gold-bright);
+  color: var(--gold-bright);
+  background: var(--ground-warm);
+}
+
+.music-modal-notice {
+  padding: 0.75rem 1.5rem;
+  background: rgba(235, 185, 90, 0.15);
+  border-bottom: 1px solid var(--gold);
+  color: var(--gold-bright);
+  font-size: 0.92rem;
+  font-weight: 500;
+}
+
+.music-modal-body {
+  padding: 1.5rem;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.music-modal-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.music-section-label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.section-title {
+  font-weight: 700;
+  color: var(--cream);
+  font-size: 1.02rem;
+}
+
+.section-desc {
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.music-select {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  border: 1px solid var(--edge);
+  background: var(--black);
+  color: var(--gold-bright);
+  font-size: 0.95rem;
+  outline: none;
+  cursor: pointer;
+}
+
+.music-select:focus {
+  border-color: var(--gold-bright);
+}
+
+.music-mode-radios {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.8rem;
+}
+
+.mode-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.9rem;
+  border-radius: 8px;
+  border: 1px solid var(--edge);
+  background: rgba(0, 0, 0, 0.4);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.mode-card:hover {
+  border-color: var(--gold);
+  background: rgba(40, 20, 20, 0.5);
+}
+
+.mode-card.is-selected {
+  border-color: var(--gold-bright);
+  background: rgba(229, 9, 20, 0.12);
+  box-shadow: 0 0 12px rgba(229, 9, 20, 0.2);
+}
+
+.mode-card input {
+  margin-top: 0.25rem;
+  accent-color: var(--red);
+  cursor: pointer;
+}
+
+.mode-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.mode-text strong {
+  font-size: 0.95rem;
+  color: var(--cream);
+}
+
+.mode-text span {
+  font-size: 0.8rem;
+  color: var(--muted);
+  line-height: 1.35;
+}
+
+.music-track-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  max-height: 280px;
+  overflow-y: auto;
+  padding-right: 0.3rem;
+  border: 1px solid var(--edge);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.35);
+  padding: 0.5rem;
+}
+
+.music-track-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.5rem 0.7rem;
+  border-radius: 6px;
+  background: var(--surface);
+  border: 1px solid rgba(77, 51, 36, 0.4);
+  transition: background-color 0.15s ease;
+}
+
+.music-track-row:hover {
+  background: var(--ground-warm);
+}
+
+.music-track-row.is-initial {
+  border-color: var(--gold);
+  background: rgba(235, 185, 90, 0.08);
+}
+
+.track-number {
+  font-size: 0.85rem;
+  color: var(--muted);
+  width: 1.5rem;
+  text-align: center;
+  flex: none;
+}
+
+.track-type-badge {
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 0.15rem 0.45rem;
+  border-radius: 4px;
+  background: rgba(229, 9, 20, 0.2);
+  color: #ff8585;
+  border: 1px solid rgba(229, 9, 20, 0.4);
+  flex: none;
+}
+
+.track-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.track-info strong {
+  font-size: 0.9rem;
+  color: var(--cream);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.track-info span {
+  font-size: 0.78rem;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.initial-badge {
+  flex: none;
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 0.2rem 0.5rem;
+  border-radius: 999px;
+  background: rgba(235, 185, 90, 0.2);
+  color: var(--gold-bright);
+  border: 1px solid var(--gold);
+}
+
+.track-row-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  flex: none;
+}
+
+.track-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 5px;
+  border: 1px solid var(--edge);
+  background: none;
+  color: var(--muted);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  font-size: 0.8rem;
+  transition: all 0.15s ease;
+  padding: 0;
+}
+
+.track-btn:hover:not(:disabled) {
+  border-color: var(--gold-bright);
+  color: var(--gold-bright);
+  background: var(--ground-warm);
+}
+
+.track-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.track-btn.is-delete:hover:not(:disabled) {
+  border-color: var(--red);
+  color: var(--red);
+  background: rgba(229, 9, 20, 0.15);
+}
+
+.add-track-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 0.8rem;
+  border-radius: 8px;
+  border: 1px dashed var(--edge);
+  background: rgba(0, 0, 0, 0.25);
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: 2fr 1.5fr 1.5fr;
+  gap: 0.5rem;
+}
+
+.add-track-form input {
+  padding: 0.6rem 0.8rem;
+  border-radius: 6px;
+  border: 1px solid var(--edge);
+  background: var(--black);
+  color: var(--cream);
+  font-size: 0.85rem;
+  outline: none;
+}
+
+.add-track-form input:focus {
+  border-color: var(--gold);
+}
+
+.add-track-submit-btn {
+  align-self: flex-start;
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  border: 1px solid var(--gold);
+  background: var(--ground-warm);
+  color: var(--gold-bright);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.add-track-submit-btn:hover {
+  background: var(--gold-bright);
+  color: var(--black);
+}
+
+.music-modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.1rem 1.5rem;
+  border-top: 1px solid var(--edge);
+  background: rgba(0, 0, 0, 0.4);
+}
+
+.footer-right {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.music-save-btn {
+  padding: 0.65rem 1.4rem;
+  font-weight: 600;
+}
+
+@media (max-width: 680px) {
+  .music-mode-radios {
+    grid-template-columns: 1fr;
+  }
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
+  .music-modal-footer {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .footer-right {
+    flex-direction: column;
+  }
+}
+
+@media (max-width: 600px) {
+  .music-player-wrap {
+    right: 1rem;
+    bottom: 1rem;
+  }
+  .music-toggle-btn {
+    width: 44px;
+    height: 44px;
+  }
+  .music-admin-btn {
+    width: 32px;
+    height: 32px;
+  }
+}
+
 @media (max-width: 860px) {
   .hero {
     padding-bottom: 1.5rem;
@@ -788,22 +1504,43 @@
     height: 40vw;
   }
 
-  .quick-bar {
-    margin-top: 1rem;
-    padding: 1rem;
+  .screening {
+    grid-template-columns: auto minmax(0, 1fr);
   }
 
-  .quick-show,
-  .quick-action {
-    flex-basis: 100%;
+  .screening-stub {
+    min-width: 5.5rem;
+    padding: 0.9rem 1rem;
   }
 
-  .quick-action {
+  .screening-stub strong {
+    font-size: 2.2rem;
+  }
+
+  .screening-main {
+    padding: 0.9rem 1.1rem;
+  }
+
+  .screening-action {
+    grid-column: 1 / -1;
     justify-content: stretch;
+    padding: 0.9rem 1.1rem 1.1rem;
+    border-top: 2px dashed rgba(217, 173, 79, 0.5);
   }
 
-  .quick-action > .primary-button {
+  .screening-action > .primary-button,
+  .screening-action > .entry {
     flex: 1;
+  }
+
+  .screening-peek {
+    right: 1rem;
+    width: 6.6rem;
+    height: 5.6rem;
+  }
+
+  .screening-peek .ati {
+    width: 5.2rem;
   }
 
   .about-inner {
@@ -812,6 +1549,20 @@
 }
 
 @media (max-width: 640px) {
+  /* On a phone the title runs nearly edge to edge, so Ati gets its own gap above the ticket instead of leaning over the words. */
+  .screening-wrap {
+    margin-top: 4.6rem;
+  }
+
+  .screening-peek {
+    width: 6.2rem;
+    height: 4.3rem;
+  }
+
+  .screening-peek .ati {
+    width: 4.6rem;
+  }
+
   .site-nav {
     grid-template-columns: auto minmax(0, 1fr);
     gap: 0.25rem 0.75rem;
@@ -837,7 +1588,6 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .marquee-track,
   .live-dot {
     animation: none;
   }

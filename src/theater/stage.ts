@@ -29,16 +29,28 @@ type Options = {
 
 function oxygenTank(x: number, z: number): THREE.Group {
   const group = new THREE.Group();
-  const blue = new THREE.MeshStandardMaterial({ color: 0x2860c8, flatShading: true, roughness: 0.45 });
-  const body = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 1.05, 10), blue);
-  body.position.y = 0.52;
-  const top = new THREE.Mesh(new THREE.SphereGeometry(0.2, 10, 5, 0, Math.PI * 2, 0, Math.PI / 2), blue);
-  top.position.y = 1.05;
-  const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.16, 6), new THREE.MeshStandardMaterial({ color: 0x1c2233 }));
-  neck.position.y = 1.3;
-  const band = new THREE.Mesh(new THREE.CylinderGeometry(0.205, 0.205, 0.07, 10), new THREE.MeshStandardMaterial({ color: 0xffffff }));
-  band.position.y = 0.72;
-  group.add(body, top, neck, band);
+  const blue = new THREE.MeshStandardMaterial({ color: 0x1565c0, roughness: 0.35, metalness: 0.15 });
+  const dark = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.7 });
+  const chrome = new THREE.MeshStandardMaterial({ color: 0xd1d5db, roughness: 0.25, metalness: 0.8 });
+  const brass = new THREE.MeshStandardMaterial({ color: 0xd97706, roughness: 0.35, metalness: 0.6 });
+
+  const base = new THREE.Mesh(new THREE.CylinderGeometry(0.185, 0.19, 0.08, 16), dark);
+  base.position.y = 0.04;
+  const body = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.18, 0.96, 16), blue);
+  body.position.y = 0.54;
+  const top = new THREE.Mesh(new THREE.SphereGeometry(0.18, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2), blue);
+  top.position.y = 1.02;
+  const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.065, 0.07, 0.12, 12), chrome);
+  neck.position.y = 1.2;
+  const reg = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.08, 0.1), brass);
+  reg.position.y = 1.28;
+  const valve = new THREE.Mesh(new THREE.CylinderGeometry(0.085, 0.085, 0.035, 12), new THREE.MeshStandardMaterial({ color: 0x1d4ed8, roughness: 0.4 }));
+  valve.position.y = 1.36;
+  const gauge = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.03, 16), chrome);
+  gauge.rotation.x = Math.PI / 2;
+  gauge.position.set(0, 1.28, 0.07);
+
+  group.add(base, body, top, neck, reg, valve, gauge);
   group.position.set(x, 0, z);
   return group;
 }

@@ -13,5 +13,8 @@
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Room"] }],
   "observability": { "enabled": true },
   // SESSION_SECRET is a secret: set it with `wrangler secret put SESSION_SECRET`.
-  "vars": { "GOOGLE_CLIENT_ID": "", "ADMIN_EMAILS": "" }
+  "vars": {
+    "SUPABASE_URL": "https://diiaruvbsuafppkelgbo.supabase.co",
+    "SUPABASE_PUBLISHABLE_KEY": "sb_publishable_KUu-d2EzRa3Qa2GMpTi6ng_L-4hY8e2"
+  }
 }
