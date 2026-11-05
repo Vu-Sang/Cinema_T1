@@ -1,8 +1,10 @@
 declare namespace YT {
   interface PlayerOptions {
     videoId: string;
+    width?: string | number;
+    height?: string | number;
     playerVars?: Record<string, string | number>;
-    events?: { onReady?: () => void; onStateChange?: () => void };
+    events?: { onReady?: () => void; onStateChange?: (event: { data: number }) => void; onError?: () => void };
   }
   class Player {
     constructor(element: HTMLElement, options: PlayerOptions);
@@ -10,6 +12,7 @@ declare namespace YT {
     pauseVideo(): void;
     seekTo(seconds: number, allowSeekAhead: boolean): void;
     cueVideoById(videoId: string): void;
+    loadVideoById(videoId: string): void;
     getCurrentTime(): number;
     getDuration(): number;
     getPlayerState(): number;
@@ -25,12 +28,4 @@ declare namespace YT {
 interface Window {
   YT?: { Player: typeof YT.Player };
   onYouTubeIframeAPIReady?: () => void;
-  google?: {
-    accounts: {
-      id: {
-        initialize(options: { client_id: string; callback: (response: { credential: string }) => void }): void;
-        renderButton(element: HTMLElement, options: Record<string, string>): void;
-      };
-    };
-  };
 }

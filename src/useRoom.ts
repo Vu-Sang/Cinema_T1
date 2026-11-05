@@ -6,13 +6,14 @@ import {
   type ChatMessage,
   type ClientMessage,
   type Playback,
+  type PrankTool,
   type ReactionKind,
   type RoomAccess,
   type Seats,
   type ServerMessage,
   type User,
 } from "../shared/protocol.ts";
-import { fetchMe } from "./api.ts";
+import { restoreUser } from "./api.ts";
 
 const PING_INTERVAL_MS = 20_000;
 const MAX_RECONNECT_MS = 10_000;
@@ -22,6 +23,7 @@ export type RoomConnection = "connecting" | "open" | "full" | "closed";
 export type RoomEvents = {
   onAction: (userId: string, kind: ActionKind) => void;
   onReaction: (userId: string, kind: ReactionKind) => void;
+  onPrank: (userId: string, tool: PrankTool, target: number) => void;
   /** A chat message sent after this person joined, so history never replays as bubbles. */
   onLiveChat: (message: ChatMessage) => void;
 };
@@ -88,6 +90,9 @@ export function useRoom(roomId: number, onSignedOut: () => void, events: RoomEve
           case "react":
             eventsRef.current.onReaction(message.userId, message.kind);
             break;
+          case "prank":
+            eventsRef.current.onPrank(message.userId, message.tool, message.target);
+            break;
           case "led":
             setLed(message.text);
             break;
@@ -129,7 +134,7 @@ export function useRoom(roomId: number, onSignedOut: () => void, events: RoomEve
           return;
         }
         setConnection("connecting");
-        fetchMe().then(
+        restoreUser().then(
           (user) => {
             if (!user) onSignedOut();
           },

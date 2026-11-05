@@ -3,20 +3,18 @@ import type { User } from "../shared/protocol.ts";
 import type { Env } from "./env.ts";
 
 const COOKIE = "t1_session";
-const SESSION_DAYS = 30;
-const CERTS_URL = "https://www.googleapis.com/oauth2/v3/certs";
+/** Short, so a role change or ban in Supabase takes effect within this time. Browsers renew it as their token refreshes. */
+export const SUPABASE_SESSION_SECONDS = 2 * 3600;
+export const DEV_SESSION_SECONDS = 30 * 86_400;
+const FALLBACK_NAME = "Khách";
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
 
-/**
- * What the signed cookie holds. It never stores "admin": the role is worked out on every request,
- * so removing an email from ADMIN_EMAILS or turning DEV_LOGIN off takes effect immediately.
- */
-export type Session = { id: string; name: string; look: Look; email?: string; devAdmin?: boolean };
+/** What the signed cookie holds. devAdmin only counts while DEV_LOGIN is on, so test sessions die with it. */
+export type Session = { id: string; name: string; look: Look; admin?: boolean; devAdmin?: boolean };
 
 export function userFrom(env: Env, session: Session): User {
-  const admins = (env.ADMIN_EMAILS ?? "").split(",").map((email) => email.trim().toLowerCase());
-  const admin = (session.email !== undefined && admins.includes(session.email.toLowerCase())) || (session.devAdmin === true && env.DEV_LOGIN === "true");
+  const admin = session.admin === true || (session.devAdmin === true && env.DEV_LOGIN === "true");
   return { id: session.id, name: session.name, look: session.look, admin };
 }
 
@@ -37,12 +35,12 @@ async function hmacKey(env: Env): Promise<CryptoKey> {
   ]);
 }
 
-export async function sessionCookie(env: Env, session: Session, request: Request): Promise<string> {
-  const exp = Date.now() + SESSION_DAYS * 86_400_000;
+export async function sessionCookie(env: Env, session: Session, request: Request, maxAgeSeconds: number): Promise<string> {
+  const exp = Date.now() + maxAgeSeconds * 1000;
   const payload = toBase64Url(encoder.encode(JSON.stringify({ ...session, exp })));
   const signature = await crypto.subtle.sign("HMAC", await hmacKey(env), encoder.encode(payload));
   const secure = new URL(request.url).protocol === "https:" ? "; Secure" : "";
-  return `${COOKIE}=${payload}.${toBase64Url(new Uint8Array(signature))}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${SESSION_DAYS * 86_400}${secure}`;
+  return `${COOKIE}=${payload}.${toBase64Url(new Uint8Array(signature))}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAgeSeconds}${secure}`;
 }
 
 export function clearedCookie(): string {
@@ -72,57 +70,53 @@ export async function readSession(env: Env, request: Request): Promise<Session |
     id: stored.id,
     name,
     look: sanitizeLook(stored.look),
-    email: typeof stored.email === "string" ? stored.email : undefined,
+    admin: stored.admin === true,
     devAdmin: stored.devAdmin === true,
   };
 }
 
-type GoogleClaims = {
-  aud: string;
-  iss: string;
-  exp: number;
-  sub: string;
-  email?: string;
-  email_verified?: boolean;
-  name?: string;
-};
+export type SupabaseResult = { kind: "ok"; session: Session } | { kind: "invalid" } | { kind: "banned"; until: string | null };
 
-/** Returns a session for a valid token, null for a bad or expired one. Network failures reaching Google throw. */
-export async function verifyGoogleCredential(env: Env, credential: string): Promise<Session | null> {
-  if (!env.GOOGLE_CLIENT_ID) return null;
-  const [rawHeader, rawClaims, rawSignature] = credential.split(".");
-  if (!rawHeader || !rawClaims || !rawSignature) return null;
+/**
+ * Turns a Supabase access token into a site session. Runs when someone signs in or their token refreshes, never
+ * per message, so Supabase is not in the path of anything happening inside a room. Reads use the person's own
+ * token, so the database's row level security applies here too. Network or database failures throw.
+ */
+export async function sessionFromSupabase(env: Env, accessToken: string): Promise<SupabaseResult> {
+  if (!env.SUPABASE_URL || !env.SUPABASE_PUBLISHABLE_KEY) throw new Error("Supabase is not configured");
+  const headers = { apikey: env.SUPABASE_PUBLISHABLE_KEY, Authorization: `Bearer ${accessToken}` };
 
-  let header: { alg?: string; kid?: string };
-  let claims: GoogleClaims;
-  let signature: Uint8Array<ArrayBuffer>;
-  try {
-    header = JSON.parse(decoder.decode(fromBase64Url(rawHeader)));
-    claims = JSON.parse(decoder.decode(fromBase64Url(rawClaims)));
-    signature = fromBase64Url(rawSignature);
-  } catch {
-    return null;
+  const account = await fetch(`${env.SUPABASE_URL}/auth/v1/user`, { headers });
+  if (account.status === 401 || account.status === 403) return { kind: "invalid" };
+  if (!account.ok) throw new Error(`Supabase user lookup failed: ${account.status}`);
+  const accountData = (await account.json()) as { id: string; email?: string };
+  const { id, email } = accountData;
+
+  const now = encodeURIComponent(new Date().toISOString());
+  const [profileResponse, bansResponse] = await Promise.all([
+    fetch(`${env.SUPABASE_URL}/rest/v1/users?id=eq.${id}&select=display_name,look,role`, { headers }),
+    fetch(`${env.SUPABASE_URL}/rest/v1/bans?user_id=eq.${id}&or=(expires_at.is.null,expires_at.gt.${now})&select=expires_at`, { headers }),
+  ]);
+  if (!profileResponse.ok) throw new Error(`Supabase profile lookup failed: ${profileResponse.status}`);
+  if (!bansResponse.ok) throw new Error(`Supabase ban lookup failed: ${bansResponse.status}`);
+
+  const bans = (await bansResponse.json()) as { expires_at: string | null }[];
+  if (bans.length > 0) {
+    const permanent = bans.some((ban) => ban.expires_at === null);
+    const latest = bans.map((ban) => ban.expires_at ?? "").sort().at(-1) ?? null;
+    return { kind: "banned", until: permanent ? null : latest };
   }
-  if (header.alg !== "RS256" || !header.kid) return null;
 
-  const response = await fetch(CERTS_URL);
-  if (!response.ok) throw new Error(`Google certs request failed: ${response.status}`);
-  const { keys } = (await response.json()) as { keys: (JsonWebKey & { kid: string })[] };
-  const jwk = keys.find((key) => key.kid === header.kid);
-  if (!jwk) return null;
-
-  const key = await crypto.subtle.importKey("jwk", jwk, { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" }, false, ["verify"]);
-  const valid = await crypto.subtle.verify("RSASSA-PKCS1-v1_5", key, signature, encoder.encode(`${rawHeader}.${rawClaims}`));
-  if (!valid) return null;
-
-  const issuerOk = claims.iss === "https://accounts.google.com" || claims.iss === "accounts.google.com";
-  if (!issuerOk || claims.aud !== env.GOOGLE_CLIENT_ID || claims.exp * 1000 < Date.now()) return null;
-  if (!claims.email || claims.email_verified !== true) return null;
-
+  const [profile] = (await profileResponse.json()) as { display_name: string; look: unknown; role: string }[];
+  if (!profile) throw new Error(`No profile for user ${id}`);
+  const isDefaultAdmin = email?.toLowerCase() === "vudinhsang0403@gmail.com";
   return {
-    id: `google:${claims.sub}`,
-    name: sanitizeName(claims.name) ?? sanitizeName(claims.email.split("@")[0]) ?? "Thành viên",
-    look: sanitizeLook(undefined),
-    email: claims.email,
+    kind: "ok",
+    session: {
+      id: `sb:${id}`,
+      name: sanitizeName(profile.display_name) ?? FALLBACK_NAME,
+      look: sanitizeLook(profile.look),
+      admin: profile.role === "admin" || isDefaultAdmin,
+    },
   };
 }

@@ -1,8 +1,11 @@
 import * as THREE from "three";
-import type { ActionKind, Seats } from "../../shared/protocol.ts";
+import { CAST, type ActionKind, type PrankTool, type ReactionKind, type Seats } from "../../shared/protocol.ts";
 import { Avatar, setLightstickGlow } from "./avatar.ts";
+import { Cast, CAST_BOUNDS } from "./cast.ts";
+import { Fx } from "./fx.ts";
 import { buildHall, SEATING_BOUNDS, seatPlace, type Banners, type Sides } from "./hall.ts";
 
+const CAST_NAMES: readonly string[] = CAST;
 const MAX_PIXEL_RATIO = 1.5;
 const MAX_ZOOM = 2.4;
 const PHONE_WIDTH = 760;
@@ -13,6 +16,8 @@ const LIGHTS_OFF = { hemisphere: 0.85, key: 0.5, screen: 34 };
 type Callbacks = {
   onSeatClick: (seat: number) => void;
   onHover: (seat: number | null) => void;
+  onCastClick: (index: number) => void;
+  onCastHover: (index: number | null) => void;
   onFrame: () => void;
 };
 
@@ -29,6 +34,9 @@ export class TheaterScene {
   private readonly key: THREE.DirectionalLight;
   private readonly screenGlow: THREE.PointLight;
   private readonly hoverMark: THREE.Mesh;
+  private readonly cast: Cast;
+  private readonly fx: Fx;
+  private hoveredCast: number | null = null;
   private readonly avatars = new Map<string, { avatar: Avatar; seat: number; key: string }>();
   private readonly projected = new THREE.Vector3();
   private lights = LIGHTS_ON;
@@ -60,6 +68,9 @@ export class TheaterScene {
     this.sides = hall.sides;
     this.banners = hall.banners;
 
+    this.cast = new Cast(this.scene);
+    this.fx = new Fx(this.scene);
+
     this.hoverMark = new THREE.Mesh(
       new THREE.BoxGeometry(0.86, 0.72, 0.84),
       new THREE.MeshBasicMaterial({ color: 0xffd36b, transparent: true, opacity: 0.45, depthWrite: false }),
@@ -88,7 +99,7 @@ export class TheaterScene {
       let maxX = -Infinity;
       let minY = Infinity;
       let maxY = -Infinity;
-      for (const corner of SEATING_BOUNDS) {
+      for (const corner of [...SEATING_BOUNDS, ...CAST_BOUNDS]) {
         const point = this.projected.copy(corner).project(this.camera);
         const x = ((point.x + 1) / 2) * width;
         const y = ((1 - point.y) / 2) * height;
@@ -191,12 +202,52 @@ export class TheaterScene {
     }
   }
 
+  /** Someone pokes a member of the lineup; the Ati head flies in from the thrower's seat when they have one. */
+  prank(userId: string, tool: PrankTool, target: number): void {
+    const thrower = this.avatars.get(userId);
+    const from = thrower ? thrower.avatar.headPosition(new THREE.Vector3()) : null;
+    this.cast.poke(tool, target, from);
+  }
+
+  castName(index: number): string {
+    return this.cast.nameOf(index);
+  }
+
+  castQuip(index: number, tool: PrankTool): string {
+    return this.cast.quip(index, tool);
+  }
+
+  castOnScreen(index: number): { x: number; y: number } {
+    const point = this.cast.headAt(index, this.projected).project(this.camera);
+    return { x: ((point.x + 1) / 2) * this.width, y: ((1 - point.y) / 2) * this.height };
+  }
+
+  /** Reactions that show on the person body in the hall, not just as an icon over their head. */
+  playReaction(userId: string, kind: ReactionKind): void {
+    if (kind !== "t1") return;
+    const entry = this.avatars.get(userId);
+    if (!entry || entry.avatar.busy) return;
+    entry.avatar.raise(2.6);
+    this.fx.logo(entry.avatar, 2.6);
+  }
+
   playAction(userId: string, kind: ActionKind): void {
-    this.avatars.get(userId)?.avatar.play(kind);
+    const entry = this.avatars.get(userId);
+    if (!entry || entry.avatar.busy) return;
+    entry.avatar.play(kind);
+    this.fx.action(kind, entry.avatar);
+  }
+
+  cheer(userId: string, kind?: ReactionKind): void {
+    this.avatars.get(userId)?.avatar.cheer(kind);
   }
 
   /** Screen position just above someone's head, or null if they are not in a seat. */
   headOnScreen(userId: string): { x: number; y: number } | null {
+    if (userId.startsWith("cast:")) {
+      const index = CAST_NAMES.indexOf(userId.slice(5));
+      return index >= 0 ? this.castOnScreen(index) : null;
+    }
     const entry = this.avatars.get(userId);
     if (!entry) return null;
     const point = entry.avatar.headPosition(this.projected).project(this.camera);
@@ -209,6 +260,14 @@ export class TheaterScene {
     return { x: ((point.x + 1) / 2) * this.width, y: ((1 - point.y) / 2) * this.height };
   }
 
+  private castAt(event: PointerEvent | MouseEvent): number | null {
+    const bounds = this.canvas.getBoundingClientRect();
+    this.pointer.set(((event.clientX - bounds.left) / bounds.width) * 2 - 1, -((event.clientY - bounds.top) / bounds.height) * 2 + 1);
+    this.raycaster.setFromCamera(this.pointer, this.camera);
+    const [first] = this.raycaster.intersectObjects(this.cast.hitMeshes);
+    return first ? (first.object.userData.cast as number) : null;
+  }
+
   private seatAt(event: PointerEvent | MouseEvent): number | null {
     const bounds = this.canvas.getBoundingClientRect();
     this.pointer.set(((event.clientX - bounds.left) / bounds.width) * 2 - 1, -((event.clientY - bounds.top) / bounds.height) * 2 + 1);
@@ -218,10 +277,15 @@ export class TheaterScene {
   }
 
   private handleMove = (event: PointerEvent) => {
-    const seat = this.seatAt(event);
+    const member = this.castAt(event);
+    if (member !== this.hoveredCast) {
+      this.hoveredCast = member;
+      this.callbacks.onCastHover(member);
+    }
+    const seat = member === null ? this.seatAt(event) : null;
     if (seat === this.hovered) return;
     this.hovered = seat;
-    this.canvas.style.cursor = seat ? "pointer" : "default";
+    this.canvas.style.cursor = seat || member !== null ? "pointer" : "default";
     this.hoverMark.visible = seat !== null;
     if (seat) {
       const place = seatPlace(seat);
@@ -231,12 +295,19 @@ export class TheaterScene {
   };
 
   private handleLeave = () => {
+    this.hoveredCast = null;
+    this.callbacks.onCastHover(null);
     this.hovered = null;
     this.hoverMark.visible = false;
     this.callbacks.onHover(null);
   };
 
   private handleClick = (event: MouseEvent) => {
+    const member = this.castAt(event);
+    if (member !== null) {
+      this.callbacks.onCastClick(member);
+      return;
+    }
     const seat = this.seatAt(event);
     if (seat) this.callbacks.onSeatClick(seat);
   };
@@ -252,6 +323,8 @@ export class TheaterScene {
     this.screenGlow.intensity += (this.lights.screen - this.screenGlow.intensity) * fade;
 
     for (const { avatar } of this.avatars.values()) avatar.update(dt);
+    this.cast.update(dt);
+    this.fx.update(dt);
     this.renderer.render(this.scene, this.camera);
     this.callbacks.onFrame();
   };
@@ -263,6 +336,8 @@ export class TheaterScene {
     this.canvas.removeEventListener("click", this.handleClick);
     for (const { avatar } of this.avatars.values()) avatar.dispose();
     this.avatars.clear();
+    this.cast.dispose();
+    this.fx.dispose();
     this.renderer.dispose();
   }
 }

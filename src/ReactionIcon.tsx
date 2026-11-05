@@ -1,7 +1,8 @@
-import type { ReactionKind } from "../shared/protocol.ts";
+import type { PrankTool, ReactionKind } from "../shared/protocol.ts";
 
 export const REACTION_LABELS: Record<ReactionKind, string> = {
   t1: "Logo T1",
+  ati: "Ati",
   star: "Ngôi sao",
   cup: "Cúp vô địch",
   heart: "Trái tim",
@@ -21,11 +22,41 @@ const PATHS: Partial<Record<ReactionKind, { d: string; fill: string }>> = {
 
 export function ReactionIcon({ kind }: { kind: ReactionKind }) {
   if (kind === "t1") return <img className="reaction-t1" src="/brand/t1-logo.svg" alt="" />;
+  if (kind === "ati") return <img className="reaction-ati" src="/brand/ati/head.webp" alt="Ati" />;
   if (kind === "gg") return <span className="reaction-gg">GG</span>;
   const path = PATHS[kind]!;
   return (
     <svg className="reaction-svg" viewBox="0 0 24 24" aria-hidden="true">
       <path d={path.d} fill={path.fill} />
+    </svg>
+  );
+}
+
+export function PrankIcon({ tool }: { tool: PrankTool }) {
+  if (tool === "throw") {
+    return <img className="prank-icon-head" src="/brand/ati/head.webp" alt="Ném đầu Ati" />;
+  }
+  if (tool === "punch") {
+    return (
+      <svg className="reaction-svg" viewBox="0 0 24 24" aria-hidden="true">
+        <path
+          d="M10.5 3a1.5 1.5 0 0 0-1.5 1.5v1.7A1.5 1.5 0 0 0 7.5 7v1.2A1.5 1.5 0 0 0 6 9.5v2.8c0 .2.1.4.2.6C4.9 13.5 4 14.9 4 16.5 4 19 6 21 8.5 21h4c3.6 0 6.5-2.9 6.5-6.5V9.8a2.8 2.8 0 0 0-2.8-2.8h-1.2V4.5A1.5 1.5 0 0 0 13.5 3h-3z"
+          fill="#e2012d"
+        />
+        <path d="M9 7.5h6M7.5 10.5h9M6 13.5h7" stroke="#ffd36b" strokeWidth="1.2" strokeLinecap="round" />
+      </svg>
+    );
+  }
+  return (
+    <svg className="reaction-svg" viewBox="0 0 24 24" aria-hidden="true">
+      <path
+        d="M20.2 3.8a6.5 6.5 0 0 0-9.2 0L3.5 11.3a1 1 0 0 0-.2.4l-1.3 6.5a1 1 0 0 0 1.2 1.2l6.5-1.3a1 1 0 0 0 .4-.2l7.5-7.5a6.5 6.5 0 0 0 0-9.2zM8.5 16.5l-3.8.8.8-3.8 6.2-6.2 3 3-6.2 6.2z"
+        fill="#ffd36b"
+      />
+      <path d="M5.5 17.5l6-6" stroke="#996515" strokeWidth="1" strokeLinecap="round" />
+      <circle cx="18" cy="18" r="1.2" fill="#fff" />
+      <circle cx="20" cy="14" r="0.8" fill="#ffd36b" />
+      <circle cx="15" cy="20" r="0.8" fill="#ffd36b" />
     </svg>
   );
 }

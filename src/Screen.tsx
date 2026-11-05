@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Playback } from "../shared/protocol.ts";
 import { correction, expectedPosition } from "../shared/sync.ts";
+import { loadYouTubeApi } from "./youtube.ts";
 
 const STATE_ENDED = 0;
 const STATE_PLAYING = 1;
@@ -10,23 +11,6 @@ const PAUSED_TOLERANCE = 0.5;
 const VOLUME_KEY = "rap-t1-volume";
 
 export type PlayerTick = { position: number; duration: number };
-
-let apiReady: Promise<void> | null = null;
-
-function loadYouTubeApi(): Promise<void> {
-  apiReady ??= new Promise((resolve, reject) => {
-    if (window.YT?.Player) return resolve();
-    window.onYouTubeIframeAPIReady = () => resolve();
-    const script = document.createElement("script");
-    script.src = "https://www.youtube.com/iframe_api";
-    script.onerror = () => {
-      apiReady = null;
-      reject(new Error("YouTube player failed to load"));
-    };
-    document.head.append(script);
-  });
-  return apiReady;
-}
 
 function readVolume(): number {
   try {

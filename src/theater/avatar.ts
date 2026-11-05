@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { HAIR_COLORS, SKIN_COLORS, type Look } from "../../shared/look.ts";
-import type { ActionKind } from "../../shared/protocol.ts";
-import { floorHeight, OXYGEN_STATIONS, SIDE_AISLE_X, type SeatPlace } from "./hall.ts";
+import type { ActionKind, ReactionKind } from "../../shared/protocol.ts";
+import { floorHeight, getShadowTexture, OXYGEN_STATIONS, SIDE_AISLE_X, type SeatPlace } from "./hall.ts";
 
 const T1_RED = 0xe2012d;
 const BLACK = 0x15151b;
@@ -165,7 +165,8 @@ const geometries = {
   thigh: new THREE.CylinderGeometry(0.095, 0.08, THIGH, 6),
   shin: new THREE.CylinderGeometry(0.075, 0.06, SHIN, 6),
   shoe: new THREE.BoxGeometry(0.12, 0.08, 0.22),
-  mask: new THREE.ConeGeometry(0.095, 0.11, 6),
+  mask: new THREE.SphereGeometry(0.125, 14, 8, 0, Math.PI * 2, 0, Math.PI / 2),
+  maskPort: new THREE.CylinderGeometry(0.03, 0.03, 0.07, 8),
   marker: new THREE.ConeGeometry(0.1, 0.17, 4),
   capTop: new THREE.SphereGeometry(0.285, 10, 6, 0, Math.PI * 2, 0, Math.PI * 0.5),
   capBrim: new THREE.BoxGeometry(0.3, 0.025, 0.22),
@@ -279,6 +280,75 @@ function buildItem(item: Look["item"]): THREE.Group | null {
   return group;
 }
 
+function buildT1Board(): THREE.Group {
+  const board = new THREE.Group();
+
+  // Dark LED placard body
+  const baseGeom = new THREE.BoxGeometry(0.66, 0.36, 0.02);
+  const baseMat = new THREE.MeshStandardMaterial({
+    color: 0x0f0709,
+    roughness: 0.35,
+    metalness: 0.3,
+  });
+  const base = new THREE.Mesh(baseGeom, baseMat);
+  board.add(base);
+
+  // Red LED glowing frame / border
+  const frameGeom = new THREE.BoxGeometry(0.69, 0.39, 0.016);
+  const frameMat = new THREE.MeshStandardMaterial({
+    color: T1_RED,
+    emissive: T1_RED,
+    emissiveIntensity: 0.95,
+    roughness: 0.2,
+  });
+  const frame = new THREE.Mesh(frameGeom, frameMat);
+  frame.position.z = -0.003;
+  board.add(frame);
+
+  // Front face: Glowing red T1 Logo (facing forward towards screen/stage)
+  const logoFront = new THREE.Mesh(geometries.logo, decal("red"));
+  logoFront.position.set(0, 0, -0.014);
+  logoFront.rotation.y = Math.PI;
+  logoFront.scale.set(2.4, 2.4, 2.4);
+  board.add(logoFront);
+
+  // Back face: Crisp white T1 Logo (facing backward for viewers sitting behind)
+  const logoBack = new THREE.Mesh(geometries.logo, decal("white"));
+  logoBack.position.set(0, 0, 0.014);
+  logoBack.scale.set(2.4, 2.4, 2.4);
+  board.add(logoBack);
+
+  // Side grips / handles
+  const handleGeom = new THREE.CylinderGeometry(0.014, 0.014, 0.24, 6);
+  const handleMat = new THREE.MeshStandardMaterial({ color: 0x222222 });
+  const handleL = new THREE.Mesh(handleGeom, handleMat);
+  handleL.position.set(-0.34, 0, 0);
+  const handleR = new THREE.Mesh(handleGeom, handleMat);
+  handleR.position.set(0.34, 0, 0);
+  board.add(handleL, handleR);
+
+  // Gold LED accent dots in the 4 corners
+  const dotGeom = new THREE.BoxGeometry(0.028, 0.028, 0.026);
+  const dotMat = new THREE.MeshStandardMaterial({
+    color: GOLD,
+    emissive: GOLD,
+    emissiveIntensity: 0.8,
+  });
+  for (const [dx, dy] of [
+    [-0.3, -0.15],
+    [0.3, -0.15],
+    [-0.3, 0.15],
+    [0.3, 0.15],
+  ]) {
+    const dot = new THREE.Mesh(dotGeom, dotMat);
+    dot.position.set(dx, dy, 0);
+    board.add(dot);
+  }
+
+  board.visible = false;
+  return board;
+}
+
 /** Every joint angle in radians. Limbs hang down at 0; a positive x swings them forward. */
 type Pose = {
   hip: number;
@@ -372,18 +442,29 @@ function walkPose(t: number): Pose {
   };
 }
 
-function breathePose(t: number): Pose {
-  const breath = Math.sin(t * 2.4) * 0.05;
+function breathePose(t: number, side = 1): Pose {
+  const breath = Math.sin(t * 2.2) * 0.055;
+  // Forearm holding mask against mouth:
+  const holdingArm: [number, number, number] = [1.16 + breath * 0.06, 0.16, 1.58 + breath * 0.04];
+  // Resting arm propped comfortably on the floor behind hip, bracing the leaning torso:
+  const restingArm: [number, number, number] = [-0.28, 0.22, 0.12];
+
+  // Foreground arm facing camera holds mask:
+  // On right aisle (side > 0), camera is on avatar's left -> armL holds mask.
+  // On left aisle (side < 0), camera is on avatar's right -> armR holds mask.
+  const armL = side > 0 ? holdingArm : restingArm;
+  const armR = side > 0 ? restingArm : holdingArm;
+
   return {
-    hip: 0.1,
+    hip: 0.06,
     forward: 0,
-    lean: -0.32 + breath,
-    sway: 0,
-    head: 0.22 + breath,
-    armL: [0.95, 0.15, 1.6],
-    armR: [0.6, -0.12, 0.5],
-    legL: [Math.PI / 2 - 0.2, -0.25],
-    legR: [Math.PI / 2 - 0.1, -0.5],
+    lean: 0.38 + breath * 0.05, // Leans BACK ~22 deg comfortably, matching reference image
+    sway: Math.sin(t * 1.1) * 0.02,
+    head: -0.16 + breath * 0.04, // Tilt chin slightly down to look directly at mask and tank
+    armL,
+    armR,
+    legL: [1.48, -0.10], // Legs outstretched flat on the floor toward tank
+    legR: [1.50, -0.12],
   };
 }
 
@@ -401,7 +482,19 @@ function oxygenRoute(place: SeatPlace): Segment[] {
   const side = Math.sign(station.x);
   const rowFront = new THREE.Vector3(place.x, 0, place.z - 0.56);
   const aisleEnd = new THREE.Vector3(side * SIDE_AISLE_X, 0, place.z - 0.56);
-  const aisleAtStation = new THREE.Vector3(side * SIDE_AISLE_X, 0, station.z);
+
+  // Tank position:
+  const tankPos = new THREE.Vector3(station.x + side * 0.3, 0, station.z - 0.45);
+
+  // Avatar sits at a clean, comfortable distance in front of the tank along the aisle (1.27m),
+  // facing toward the tank. Because this puts the avatar facing +Z (towards the camera),
+  // the camera sees the avatar's 3/4 profile (face, mask, arm, chest, and outstretched legs):
+  const atX = side * 6.35;
+  const atZ = station.z - 1.40;
+  const aisleAtStation = new THREE.Vector3(atX, 0, atZ);
+
+  // Character faces directly toward the oxygen tank:
+  const headingToTank = headingToward(aisleAtStation, tankPos);
 
   const stops = [seat, rowFront, aisleEnd, aisleAtStation];
   const route: Segment[] = [];
@@ -410,9 +503,9 @@ function oxygenRoute(place: SeatPlace): Segment[] {
     if (seconds > 0.01) route.push({ kind: "travel", from, to, seconds, pose, heading: headingToward(from, to) });
   };
   for (let index = 0; index < stops.length - 1; index++) travel(stops[index], stops[index + 1], CRAWL_SPEED, crawlPose);
-  route.push({ kind: "still", at: aisleAtStation, seconds: 0.5, pose: breathePose, heading: side * -Math.PI / 2 });
-  route.push({ kind: "still", at: aisleAtStation, seconds: BREATHE_SECONDS, pose: breathePose, heading: side * -Math.PI / 2, mask: true });
-  route.push({ kind: "still", at: aisleAtStation, seconds: 0.5, pose: () => STAND, heading: side * -Math.PI / 2 });
+  route.push({ kind: "still", at: aisleAtStation, seconds: 0.5, pose: (t) => breathePose(t, side), heading: headingToTank });
+  route.push({ kind: "still", at: aisleAtStation, seconds: BREATHE_SECONDS, pose: (t) => breathePose(t, side), heading: headingToTank, mask: true });
+  route.push({ kind: "still", at: aisleAtStation, seconds: 0.5, pose: () => STAND, heading: headingToTank });
   for (let index = stops.length - 1; index > 0; index--) travel(stops[index], stops[index - 1], WALK_SPEED, walkPose);
   return route;
 }
@@ -429,6 +522,38 @@ const smoothAngle = (from: number, to: number, amount: number) => {
 };
 
 /** Seated in the house by default; the banner and character preview stand people up on a floor instead. */
+/** What happens to someone on stage when a viewer pokes them. */
+export type Poke = "punch" | "bonk" | "tickle";
+
+function pokePose(kind: Poke): { pose: (t: number) => Pose; seconds: number } {
+  if (kind === "punch") {
+    return {
+      seconds: 1.5,
+      pose: (t) => {
+        const hit = Math.exp(-t * 3.2);
+        return { ...STAND, forward: 0, lean: -0.5 * hit, head: -0.75 * hit, sway: Math.sin(t * 22) * 0.1 * hit, armL: [-1.3 * hit, 0.9 * hit, 0.4], armR: [-1.3 * hit, -0.9 * hit, 0.4] };
+      },
+    };
+  }
+  if (kind === "bonk") {
+    return {
+      seconds: 2.2,
+      pose: (t) => {
+        const dizzy = Math.exp(-t * 1.4);
+        return { ...STAND, forward: 0, head: 0.45 * dizzy, sway: Math.sin(t * 9) * 0.18 * dizzy, armL: [0.9, 0.3, 0.9 * dizzy + 0.1], armR: [0.4 + Math.sin(t * 9) * 0.3 * dizzy, -0.3, 0.2] };
+      },
+    };
+  }
+  return {
+    seconds: 2.4,
+    pose: (t) => {
+      const fade = Math.min(1, (2.4 - t) * 2);
+      const shake = Math.sin(t * 26) * fade;
+      return { ...STAND, forward: 0, hip: STAND_HIP - 0.05 * fade, lean: 0.35 * fade, head: -0.35 * fade, sway: shake * 0.16, armL: [0.9, 0.4 + shake * 0.15, 0.6], armR: [0.9, -0.4 - shake * 0.15, 0.6] };
+    },
+  };
+}
+
 export type AvatarDisplay = "seated" | "standing" | "breathing";
 
 export class Avatar {
@@ -440,15 +565,22 @@ export class Avatar {
   private readonly legL: Limb;
   private readonly legR: Limb;
   private readonly oxygenMask: THREE.Mesh;
+  private readonly groundShadow: THREE.Mesh;
   private readonly print: THREE.Mesh;
   private readonly marker: THREE.Mesh;
   private readonly item: THREE.Group | null;
+  private readonly t1Board: THREE.Group;
+  private t1WaveTime = 0;
   private readonly idleSeed: number;
   private place: SeatPlace;
   private timed: { pose: (t: number) => Pose; seconds: number; elapsed: number } | null = null;
   private route: { segments: Segment[]; index: number; elapsed: number } | null = null;
   private clock = 0;
   display: AvatarDisplay = "seated";
+  /** True while someone is at a tank with the tube clipped to their mouth. */
+  breathing = false;
+  /** Which way a standing person looks; 0 is toward the screen, PI toward the audience. */
+  facing = 0;
 
   constructor(userId: string, name: string, look: Look, place: SeatPlace) {
     this.place = place;
@@ -511,12 +643,46 @@ export class Avatar {
     this.buildFace(look);
     this.buildHeadwear(look);
 
-    this.oxygenMask = mesh(geometries.mask, 0x8fd0ff, 0.17);
+    this.oxygenMask = new THREE.Mesh(
+      geometries.mask,
+      new THREE.MeshStandardMaterial({
+        color: 0x8fe5ff,
+        transparent: true,
+        opacity: 0.7,
+        roughness: 0.15,
+        metalness: 0.08,
+        side: THREE.DoubleSide,
+      }),
+    );
     this.oxygenMask.rotation.x = -Math.PI / 2;
-    this.oxygenMask.position.z = -0.25;
+    this.oxygenMask.position.set(0, 0.11, -0.21);
+    this.oxygenMask.scale.set(1.15, 1.25, 0.95);
+    const port = mesh(geometries.maskPort, 0xf1f5f9, 0.125);
+    port.position.set(0, 0.12, -0.01);
+    port.rotation.x = 0.25;
+    this.oxygenMask.add(port);
+
+    const strap = new THREE.Mesh(
+      new THREE.TorusGeometry(0.245, 0.01, 4, 16, Math.PI * 1.15),
+      new THREE.MeshStandardMaterial({ color: 0x475569, roughness: 0.8 }),
+    );
+    strap.rotation.y = Math.PI / 2;
+    strap.position.set(0, 0, 0.06);
+    this.oxygenMask.add(strap);
     this.oxygenMask.visible = false;
     this.head.add(this.oxygenMask);
+
+    this.groundShadow = new THREE.Mesh(
+      new THREE.PlaneGeometry(0.85, 1.3),
+      new THREE.MeshBasicMaterial({ map: getShadowTexture(), transparent: true, opacity: 0.55, depthWrite: false }),
+    );
+    this.groundShadow.rotation.x = -Math.PI / 2;
+    this.groundShadow.visible = false;
+    this.root.add(this.groundShadow);
     this.torso.add(this.head);
+
+    this.t1Board = buildT1Board();
+    this.torso.add(this.t1Board);
 
     const armParts = (sleeve: Paint): [THREE.Object3D[], THREE.Object3D[]] => [
       [mesh(geometries.upperArm, paint(sleeve), -0.125), mesh(geometries.sleeve, style.cuff, -0.225)],
@@ -636,13 +802,107 @@ export class Avatar {
     this.place = place;
     this.timed = null;
     this.route = null;
+    this.breathing = false;
     this.root.rotation.y = 0;
     this.root.position.set(place.x, place.y + SIT.hip, place.z);
     this.oxygenMask.visible = false;
   }
 
+  /** Both arms up, swaying: holding something high, like the T1 sign. */
+  raise(seconds: number): void {
+    if (this.route) return;
+    this.timed = {
+      seconds,
+      elapsed: 0,
+      pose: (t) => {
+        const wave = Math.sin(t * 6) * 0.12;
+        const base = this.display === "seated" ? SIT : STAND;
+        const up = Math.min(1, t * 5) * Math.min(1, (seconds - t) * 4);
+        return {
+          ...base,
+          armL: [3.05 * up + base.armL[0] * (1 - up), 0.25, 0.15],
+          armR: [3.05 * up + base.armR[0] * (1 - up), -0.25, 0.15],
+          sway: wave * up,
+        };
+      },
+    };
+  }
+
+  face(angle: number): void {
+    this.facing = angle;
+    this.root.rotation.y = angle;
+  }
+
+  /** Reacts to being poked, interrupting whatever they were doing. */
+  poke(kind: Poke): void {
+    this.route = null;
+    this.timed = { ...pokePose(kind), elapsed: 0 };
+  }
+
+  /** Quick cheer gesture when sending a reaction. When cheering T1, holds up and waves a T1 board! */
+  cheer(kind?: ReactionKind): void {
+    if (this.display !== "seated") return;
+    if (kind === "t1") {
+      this.route = null;
+      this.t1WaveTime = 2.8;
+      this.t1Board.visible = true;
+      this.timed = {
+        seconds: 2.8,
+        elapsed: 0,
+        pose: (t) => {
+          const beat = t * 8;
+          const wave = Math.sin(beat);
+          const enter = Math.min(1, t * 5);
+          const exit = Math.min(1, (2.8 - t) * 3);
+          const weight = enter * exit;
+          return {
+            ...SIT,
+            hip: SIT.hip + Math.abs(Math.sin(beat * 0.5)) * 0.06 * weight,
+            lean: 0.14 * weight,
+            sway: wave * 0.16 * weight,
+            head: wave * 0.12 * weight,
+            armL: [2.35 + wave * 0.2, 0.22, 0.1],
+            armR: [2.35 - wave * 0.2, -0.22, 0.1],
+          };
+        },
+      };
+      return;
+    }
+    if (this.busy) return;
+    this.timed = {
+      seconds: 1.8,
+      elapsed: 0,
+      pose: (t) => {
+        const beat = t * 10;
+        const wave = Math.sin(beat);
+        return {
+          ...SIT,
+          hip: SIT.hip + Math.abs(Math.sin(beat * 0.5)) * 0.08,
+          head: Math.sin(beat * 0.5) * 0.12,
+          armL: [2.6 + wave * 0.35, 0.3, 0.2],
+          armR: [2.6 - wave * 0.35, -0.3, 0.2],
+        };
+      },
+    };
+  }
+
   get busy(): boolean {
     return Boolean(this.timed || this.route);
+  }
+
+  get masked(): boolean {
+    return this.breathing;
+  }
+
+  /** The tank cluster this person crawls to: the nearest one along the side aisles. */
+  oxygenStation(): THREE.Vector3 {
+    const seat = new THREE.Vector3(this.place.x, 0, this.place.z);
+    return OXYGEN_STATIONS.reduce((best, candidate) => (candidate.distanceToSquared(seat) < best.distanceToSquared(seat) ? candidate : best));
+  }
+
+  /** Where the mouth is in the world, for the tube clipped to it. */
+  mouthPosition(target: THREE.Vector3): THREE.Vector3 {
+    return this.head.localToWorld(target.set(0, 0.11, -0.32));
   }
 
   play(kind: ActionKind): void {
@@ -671,7 +931,7 @@ export class Avatar {
     let x = this.place.x;
     let z = this.place.z;
     let base = this.place.y;
-    let heading = 0;
+    let heading = this.facing;
     let mask = this.display === "breathing";
     let travelling = false;
 
@@ -708,8 +968,33 @@ export class Avatar {
 
     const amount = 1 - Math.exp(-POSE_SMOOTHING * dt);
     this.applyPose(pose, amount);
+    // The tube clip is drawn by the hall effects; the mask flag only says someone is breathing from a tank.
+    this.breathing = mask;
     this.oxygenMask.visible = mask;
-    if (this.item) this.item.visible = !travelling;
+    this.groundShadow.visible = mask;
+    if (mask) {
+      this.groundShadow.position.set(0, -pose.hip + 0.012, -0.28);
+    }
+
+    if (this.t1WaveTime > 0) {
+      this.t1WaveTime -= dt;
+      if (this.t1WaveTime <= 0) {
+        this.t1WaveTime = 0;
+        this.t1Board.visible = false;
+      } else {
+        const elapsed = 2.8 - this.t1WaveTime;
+        const beat = elapsed * 8;
+        const wave = Math.sin(beat);
+        this.t1Board.visible = true;
+        this.t1Board.position.set(wave * 0.06, 0.88 + Math.abs(wave) * 0.03, -0.2);
+        this.t1Board.rotation.z = wave * 0.18;
+        this.t1Board.rotation.y = Math.cos(beat * 0.5) * 0.12;
+      }
+    } else {
+      this.t1Board.visible = false;
+    }
+
+    if (this.item) this.item.visible = !travelling && this.t1WaveTime <= 0;
 
     // Forward offset steps people out of the chair so legs do not pass through it.
     const targetZ = z - pose.forward * Math.cos(heading);

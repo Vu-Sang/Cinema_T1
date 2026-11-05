@@ -14,6 +14,9 @@ import {
   type ClientMessage,
   type Playback,
   type ReactionKind,
+  CAST,
+  PRANK_TOOLS,
+  type PrankTool,
   type RoomAccess,
   type RoomAdminAction,
   type RoomSummary,
@@ -22,19 +25,21 @@ import {
   type User,
 } from "../shared/protocol.ts";
 import { expectedPosition, parseYouTubeId } from "../shared/sync.ts";
+import { findSticker } from "../shared/stickers.ts";
 import type { Env } from "./env.ts";
 
 const CHAT_HISTORY = 50;
 const CHAT_INTERVAL_MS = 700;
 const ACTION_INTERVAL_MS = 1500;
 const REACTION_INTERVAL_MS = 350;
+const PRANK_INTERVAL_MS = 450;
 const MAX_SCHEDULE_MS = 365 * 86_400_000;
 /** Browsers ping every 20 seconds, slower in a background tab. Silence this long means the connection is dead. */
 const STALE_AFTER_MS = 150_000;
 const STALE_CLOSE_CODE = 4002;
 
 /** Kept on each socket so it survives the Durable Object hibernating. */
-type Attachment = { user: User; seat: number | null; lastChatAt: number; lastActionAt: number; lastReactionAt: number; lastSeenAt: number };
+type Attachment = { user: User; seat: number | null; lastChatAt: number; lastActionAt: number; lastReactionAt: number; lastPrankAt?: number; lastSeenAt: number };
 
 const EMPTY_PLAYBACK: Playback = {
   videoId: null,
@@ -77,6 +82,21 @@ export class Room extends DurableObject<Env> {
     if (pathname === "/ws") return this.join(JSON.parse(decodeURIComponent(request.headers.get("X-User")!)) as User);
     // Only the Worker can reach this object, and it checks the admin role before forwarding.
     if (pathname === "/access" && request.method === "POST") return this.changeAccess(request);
+    if (pathname === "/settings") {
+      if (request.method === "GET") {
+        const stored = await this.ctx.storage.get("music-settings");
+        return Response.json(stored ?? null);
+      }
+      if (request.method === "POST") {
+        try {
+          const data = await request.json();
+          await this.ctx.storage.put("music-settings", data);
+          return Response.json(data);
+        } catch {
+          return new Response("Invalid JSON", { status: 400 });
+        }
+      }
+    }
     return new Response("Not found", { status: 404 });
   }
 
@@ -179,7 +199,7 @@ export class Room extends DurableObject<Env> {
       case "seat":
         return this.takeSeat(socket, message.seat);
       case "chat":
-        return this.postChat(socket, message.text);
+        return this.postChat(socket, message.text, message.stickerId);
       case "control":
         return this.control(socket, message);
       case "load":
@@ -188,6 +208,8 @@ export class Room extends DurableObject<Env> {
         return this.act(socket, message.kind);
       case "react":
         return this.react(socket, message.kind);
+      case "prank":
+        return this.prank(socket, message.tool, message.target);
       case "profile":
         return this.updateProfile(socket, message.name, message.look);
       case "led":
@@ -219,14 +241,21 @@ export class Room extends DurableObject<Env> {
   private react(socket: WebSocket, kind: unknown): void {
     if (!REACTIONS.includes(kind as ReactionKind)) return;
     const attachment = this.attachment(socket);
-    if (attachment.seat === null) {
-      send(socket, { t: "error", message: "Hãy chọn ghế trước khi cổ vũ." });
-      return;
-    }
     const now = Date.now();
     if (now - attachment.lastReactionAt < REACTION_INTERVAL_MS) return;
     socket.serializeAttachment({ ...attachment, lastReactionAt: now });
     this.broadcast({ t: "react", userId: attachment.user.id, kind: kind as ReactionKind });
+  }
+
+  /** Someone pokes the lineup on stage. Nothing is stored: it is a moment everyone in the room sees together. */
+  private prank(socket: WebSocket, tool: unknown, target: unknown): void {
+    if (!PRANK_TOOLS.includes(tool as PrankTool)) return;
+    if (!Number.isInteger(target) || (target as number) < 0 || (target as number) >= CAST.length) return;
+    const attachment = this.attachment(socket);
+    const now = Date.now();
+    if (now - (attachment.lastPrankAt ?? 0) < PRANK_INTERVAL_MS) return;
+    socket.serializeAttachment({ ...attachment, lastPrankAt: now });
+    this.broadcast({ t: "prank", userId: attachment.user.id, tool: tool as PrankTool, target: target as number });
   }
 
   /** Browsers send this after saving a character, so the room sees it without a reconnect. */
@@ -266,10 +295,11 @@ export class Room extends DurableObject<Env> {
     this.broadcastSeats();
   }
 
-  private async postChat(socket: WebSocket, input: unknown): Promise<void> {
-    if (typeof input !== "string") return;
-    const text = input.trim().slice(0, MAX_CHAT_LENGTH);
-    if (!text) return;
+  private async postChat(socket: WebSocket, input: unknown, stickerId?: unknown): Promise<void> {
+    const rawText = typeof input === "string" ? input.trim().slice(0, MAX_CHAT_LENGTH) : "";
+    const sticker = typeof stickerId === "string" ? findSticker(stickerId) : undefined;
+    if (!rawText && !sticker) return;
+    const text = sticker && !rawText ? `[Sticker: ${sticker.name}]` : rawText;
     const attachment = this.attachment(socket);
     const now = Date.now();
     if (now - attachment.lastChatAt < CHAT_INTERVAL_MS) {
@@ -283,6 +313,7 @@ export class Room extends DurableObject<Env> {
       name: attachment.user.name,
       admin: attachment.user.admin,
       text,
+      sticker,
       at: now,
     };
     this.messages = [...this.messages, message].slice(-CHAT_HISTORY);
